@@ -127,6 +127,19 @@
     return h.d + ' ' + BULAN_H[h.m - 1] + (opt === 'noYear' ? '' : ' ' + h.y + (opt === 'H' ? ' H' : ''));
   };
   U.bulanH = function (y, m) { return BULAN_H[m - 1] + ' ' + y + ' H'; };
+  U.namaKelompok = function (id) {
+    if (!id) return '';
+    const list = (window.S && S.boot && S.boot.kelompokDana) || [];
+    for (let i = 0; i < list.length; i++) if (list[i].id === id) return list[i].nama;
+    return '';
+  };
+  /** Teks kolom "kategori" untuk tabel: pos (Pribadi), anggaran·kategori (Pondok), kepanitiaan (Terop). */
+  U.labelKategori = function (t) {
+    if (t.dompet === 'Pribadi') return t.jenis === 'Pemasukan' ? 'Pemasukan' : (t.kategori || '-');
+    const k = U.namaKelompok(t.idKelompok) || (t.dompet === 'Pondok' ? 'Tanpa anggaran' : 'Tanpa kepanitiaan');
+    if (t.dompet === 'Terop') return k;
+    return k + ' · ' + (t.jenis === 'Pemasukan' ? 'Dana masuk' : (t.kategori || '-'));
+  };
 
   // ---------- DOM ----------
   U.$ = function (sel, root) { return (root || document).querySelector(sel); };

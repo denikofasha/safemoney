@@ -16,7 +16,7 @@
     const b = root.querySelector('[data-act="kembali-bulan-ini"]');
     if (b) b.onclick = async function () { S.periodeId = S.boot.periodeIni; root.innerHTML = UI.skeleton(); try { await App.refresh(); } catch (err) { UI.toast(err.message, 'error'); } };
   }
-  function trxRow(t) {
+  function trxRow(t, opt) {
     const i = UI.trxIcon(t);
     const ket = t.keterangan || t.subkategori || (t.jenis === 'Pemasukan' ? t.sumber : t.kategori) || '-';
     const sub = [t.jenis === 'Pemasukan' ? t.sumber : t.subkategori, t.refTipe === 'hutang' ? 'Bayar hutang' : ''].filter(function (x, i, a) { return x && x !== ket && a.indexOf(x) === i; }).join(' · ');
@@ -25,7 +25,7 @@
       '<td><div class="dt"><b>' + e(U.hijriLabel(t.tanggal)) + '</b><small>' + U.masehi(t.tanggal) + (t.waktu ? ' · ' + e(t.waktu) : '') + '</small></div></td>' +
       '<td><div class="desc"><span class="ic-tile ' + i.tone + '">' + ic(i.ik) + '</span><div><b>' + e(ket) + '</b><small>' + e(sub) + ' ' + st + '</small></div></div></td>' +
       '<td>' + UI.wallet(t.dompet) + (t.dompet === 'Pondok' && t.jenis === 'Pengeluaran' && !t.adaBukti ? '<div style="margin-top:4px"><span class="pill p-hampir">' + ic('paperclip') + 'Belum ada nota</span></div>' : '') + '</td>' +
-      '<td class="hide-m">' + e(t.jenis === 'Pemasukan' ? (t.dompet === 'Pribadi' ? 'Pemasukan' : 'Dana masuk') : (t.kategori || '-')) + '</td>' +
+      '<td class="hide-m">' + e(opt && opt.grup ? (t.jenis === 'Pemasukan' ? 'Dana masuk' : (t.kategori || 'Pengeluaran')) : U.labelKategori(t)) + '</td>' +
       '<td class="r"><span class="' + (t.jenis === 'Pemasukan' ? 'amt-in' : 'amt-out') + ' num">' + U.rpSigned(t) + '</span>' +
       (t.adaBukti ? ' <span title="Ada bukti" class="muted">' + ic('paperclip', 'sm') + '</span>' : '') + '</td></tr>';
   }
@@ -33,14 +33,14 @@
     const i = UI.trxIcon(t);
     const ket = t.keterangan || t.subkategori || (t.jenis === 'Pemasukan' ? t.sumber : t.kategori) || '-';
     return '<li class="' + (t._pending || t._queued ? 'pending' : '') + '" data-trx="' + e(t.id) + '"><span class="ic-tile ' + i.tone + '">' + ic(i.ik) + '</span>' +
-      '<div class="mid"><b>' + e(ket) + '</b><small>' + e(U.DOMPET_LABEL[t.dompet]) + ' · ' + e(t.jenis === 'Pemasukan' ? (t.sumber || 'Pemasukan') : (t.kategori || '-')) + (t._queued ? ' · Antre' : t._pending ? ' · Menyimpan…' : '') + '</small></div>' +
+      '<div class="mid"><b>' + e(ket) + '</b><small>' + e(U.DOMPET_LABEL[t.dompet]) + ' · ' + e(t.dompet === 'Pribadi' ? (t.jenis === 'Pemasukan' ? (t.sumber || 'Pemasukan') : (t.kategori || '-')) : U.labelKategori(t)) + (t._queued ? ' · Antre' : t._pending ? ' · Menyimpan…' : '') + '</small></div>' +
       '<div class="rt"><b class="' + (t.jenis === 'Pemasukan' ? 'amt-in' : 'amt-out') + ' num">' + U.rpSigned(t) + '</b><small>' + e(U.hijriLabel(t.tanggal, 'noYear')) + '</small></div></li>';
   }
   function trxTable(list, opt) {
     opt = opt || {};
     if (!list.length) return UI.empty('list', opt.kosong || 'Belum ada transaksi', opt.kosongSub || 'Catat transaksi pertama Anda di periode ini.', opt.cta === false ? '' : '<button class="btn btn-gold" style="margin-top:14px" data-act="catat">' + ic('plus') + 'Catat Transaksi</button>');
-    return '<div class="table-wrap hide-m"><table class="tbl"><thead><tr><th>Tanggal</th><th>Keterangan</th><th>Dompet</th><th class="hide-m">Kategori</th><th class="r">Nominal</th></tr></thead><tbody>' +
-      list.map(trxRow).join('') + '</tbody></table></div>' +
+    return '<div class="table-wrap hide-m"><table class="tbl"><thead><tr><th>Tanggal</th><th>Keterangan</th><th>Dompet</th><th class="hide-m">Kategori / Kelompok</th><th class="r">Nominal</th></tr></thead><tbody>' +
+      list.map(function (t) { return trxRow(t, opt); }).join('') + '</tbody></table></div>' +
       '<ul class="tx-list show-m">' + list.map(trxItem).join('') + '</ul>';
   }
   function bindTrx(root, list) {
@@ -104,7 +104,9 @@
           return '<div class="pos ' + kls + '" data-tip="' + e(a.kategori + ' · ' + a.persen + '% dari pemasukan\nBatas ' + U.rp(a.batas) + '\nSisa ' + U.rp(a.sisa)) + '">' +
             UI.ring(a.pct, { size: 84, stroke: 9, color: tab ? '#FFB700' : si.color, color2: col2 }) +
             '<h4><span class="hide-m">' + e(a.kategori) + '</span><span class="show-m">' + e(U.POS_SINGKAT[a.kategori]) + '</span></h4><div class="amt num"><span class="hide-m">' + U.rp(a.terpakai) + ' / ' + U.rp(a.batas) + '</span><span class="show-m">' + U.rpShort(a.terpakai) + ' / ' + U.rpShort(a.batas) + '</span></div>' + UI.pill(a.status, a.status === 'Berjalan' ? Math.round(a.pct) + '% terisi' : null) + '</div>';
-        }).join('') + '</div></div>' +
+        }).join('') + '</div>' + (b.evaluasiLalu && b.evaluasiLalu.usulan && !b.evaluasiLalu.diterapkan && App.isCurrentPeriod()
+          ? '<div class="note warn" style="margin-top:16px">' + ic('history') + '<div style="flex:1"><b>Evaluasi bulan lalu:</b> ' + e(b.evaluasiLalu.pos.map(function (x) { return x.kategori + ' ' + Math.round(x.pct) + '%'; }).join(', ')) +
+            ' melebihi batas di ' + e(b.evaluasiLalu.periode) + '. Ada saran persentase untuk bulan ini.</div><button class="btn btn-sm btn-gold" data-act="evaluasi">Lihat saran</button></div>' : '') + '</div>' +
 
         '<div class="grid g-3" style="margin-top:22px">' +
         walletCard('Pondok', b.saldo.Pondok, 'Saldo tercatat', b.belumNota.length ? '<span class="pill p-hampir">' + ic('paperclip') + b.belumNota.length + ' belum ada nota</span>' : '<span class="pill p-aman">' + ic('checkCircle') + 'Nota lengkap</span>', 'Amanah kas pondok') +
@@ -130,6 +132,7 @@
       U.$$('[data-go]', root).forEach(function (b) { b.onclick = function () { App.go(b.dataset.go); }; });
       U.$$('[data-hide]', root).forEach(function (b) { b.onclick = function () { S.hiddenBanner[b.dataset.hide] = 1; U.session.set('sm_hidebanner', S.hiddenBanner); b.parentNode.remove(); }; });
       const tb = root.querySelector('[data-act="target-baru"]'); if (tb) tb.onclick = function () { Forms.target(); };
+      const ev = root.querySelector('[data-act="evaluasi"]'); if (ev) ev.onclick = function () { Forms.terapkanEvaluasi(); };
       quoteSlider(root, S);
     }
   };
@@ -194,7 +197,8 @@
         '<select class="select" id="fDompet"><option value="">Semua dompet</option>' + ['Pribadi', 'Pondok', 'Terop'].map(function (d) { return '<option value="' + d + '" ' + (f.dompet === d ? 'selected' : '') + '>' + U.DOMPET_LABEL[d] + '</option>'; }).join('') + '</select>' +
         '<select class="select" id="fJenis"><option value="">Semua jenis</option><option ' + (f.jenis === 'Pemasukan' ? 'selected' : '') + '>Pemasukan</option><option ' + (f.jenis === 'Pengeluaran' ? 'selected' : '') + '>Pengeluaran</option></select>' +
         '<select class="select" id="fKategori"><option value="">Semua kategori</option>' + kat.map(function (k) { return '<option ' + (f.kategori === k ? 'selected' : '') + '>' + e(k) + '</option>'; }).join('') + '</select>' +
-        '</div><div class="row wrap" style="margin-top:10px;gap:8px"><span class="small muted">Rentang:</span>' +
+        '</div><div class="row wrap" style="margin-top:10px;gap:8px"><select class="select" id="fKelompok" style="height:40px;max-width:420px"><option value="">Semua anggaran & kepanitiaan</option>' +
+        (S.boot.kelompokDana || []).map(function (k) { const v = k.id || '__tanpa'; return '<option value="' + v + '" ' + (f.idKelompok === v ? 'selected' : '') + '>' + (k.dompet === 'Pondok' ? 'Pondok · ' : 'Terop · ') + e(k.nama) + '</option>'; }).join('') + '</select></div><div class="row wrap" style="margin-top:10px;gap:8px"><span class="small muted">Rentang:</span>' +
         '<input type="date" class="input" id="fDari" style="height:40px;width:auto" value="' + e(f.dari || '') + '"><span class="muted">–</span><input type="date" class="input" id="fSampai" style="height:40px;width:auto" value="' + e(f.sampai || '') + '">' +
         '<input class="input num" id="fMin" inputmode="numeric" placeholder="Min Rp" style="height:40px;width:130px" value="' + e(f.min ? U.fmtInput(f.min) : '') + '">' +
         '<input class="input num" id="fMax" inputmode="numeric" placeholder="Maks Rp" style="height:40px;width:130px" value="' + e(f.max ? U.fmtInput(f.max) : '') + '">' +
@@ -207,7 +211,8 @@
       const f = S.tf;
       const read = function () {
         f.q = U.$('#fQ', root).value.trim(); f.periode = U.$('#fPeriode', root).value; f.periodeAuto = false;
-        f.dompet = U.$('#fDompet', root).value; f.jenis = U.$('#fJenis', root).value; f.kategori = U.$('#fKategori', root).value;
+        f.dompet = U.$('#fDompet', root).value; f.jenis = U.$('#fJenis', root).value; f.kategori = U.$('#fKategori', root).value; f.idKelompok = U.$('#fKelompok', root).value;
+        if (f.idKelompok === '__tanpa' && !f.dompet) { const kk = (S.boot.kelompokDana || []).find(function (k) { return k.tanpa; }); if (kk) f.dompet = kk.dompet; }
         f.dari = U.$('#fDari', root).value; f.sampai = U.$('#fSampai', root).value; f.min = U.parseNum(U.$('#fMin', root).value); f.max = U.parseNum(U.$('#fMax', root).value);
         f.page = 1; load();
       };
@@ -218,12 +223,12 @@
       if (window.innerWidth < 1100) U.$('#filterGrid', root).style.gridTemplateColumns = window.innerWidth < 768 ? '1fr 1fr' : '1fr 1fr 1fr';
       if (window.innerWidth < 768) U.$('#fQ', root).parentNode.style.gridColumn = 'span 2';
       async function load() {
-        const key = JSON.stringify([f.q, f.periode, f.dompet, f.jenis, f.kategori, f.dari, f.sampai, f.min, f.max, S.boot.periode.id, S.boot.transaksi.length]);
+        const key = JSON.stringify([f.q, f.periode, f.dompet, f.jenis, f.kategori, f.idKelompok, f.dari, f.sampai, f.min, f.max, S.boot.periode.id, S.boot.transaksi.length]);
         let d = S.trxCache[key];
         if (!d) {
           U.$('#tList', root).innerHTML = '<div class="skel" style="height:220px"></div>';
           try {
-            d = await API.call('transaksiList', { q: f.q, periode: f.periode, dompet: f.dompet, jenis: f.jenis, kategori: f.kategori, dari: f.dari, sampai: f.sampai, min: f.min, max: f.max });
+            d = await API.call('transaksiList', { q: f.q, periode: f.periode, dompet: f.dompet, jenis: f.jenis, kategori: f.kategori, idKelompok: f.idKelompok, dari: f.dari, sampai: f.sampai, min: f.min, max: f.max });
             S.trxCache[key] = d;
           } catch (err) {
             U.$('#tList', root).innerHTML = UI.empty('wifiOff', 'Gagal memuat', err.message, '<button class="btn btn-sec" style="margin-top:12px" id="retry">' + ic('refresh') + 'Coba lagi</button>');
@@ -263,7 +268,20 @@
     render: function (S) {
       const b = S.boot, r = b.ringkasan, st = b.saranTarget;
       S.ang = {}; b.anggaran.forEach(function (a) { S.ang[a.kategori] = a.persen; });
-      return pastNote(S) + '<div class="page-head"><div><h1>Anggaran Bulanan</h1><p>' + e(b.periode.nama) + ' · ' + U.masehi(b.periode.mulai) + ' – ' + U.masehi(b.periode.akhir) + '. Batas tiap pos dihitung dari ' +
+      const ev = b.evaluasiLalu;
+      const evCard = ev && App.isCurrentPeriod() ? '<div class="card ' + (ev.diterapkan ? '' : 'rec') + '" style="margin-bottom:22px"><div class="row wrap" style="gap:16px;align-items:flex-start">' +
+        '<span class="ic-tile ' + (ev.diterapkan ? 't-em' : 't-solidgold') + '">' + ic(ev.diterapkan ? 'checkCircle' : 'history') + '</span><div style="flex:1;min-width:240px">' +
+        '<h3 style="margin:0 0 4px">Evaluasi ' + e(ev.periode) + '</h3><p class="muted" style="margin:0 0 12px">' +
+        (ev.diterapkan ? 'Saran sudah diterapkan. Persentase bulan ini sudah diturunkan agar tidak terulang — semangat!' :
+          ev.usulan ? 'Bulan lalu ada pos yang melebihi batas. Turunkan persennya bulan ini sebesar kelebihan tersebut; selisihnya dialihkan ke Tabungan.' :
+            'Bulan lalu ada pos yang melebihi batas, tetapi persennya sudah di batas minimum. Coba kurangi pengeluaran di pos tersebut.') + '</p>' +
+        '<div class="table-wrap" style="margin:0"><table class="tbl"><thead><tr><th>Pos</th><th class="r">Pemakaian lalu</th><th class="r">Lebih</th><th class="r hide-m">Persen lalu</th><th class="r">Saran bulan ini</th></tr></thead><tbody>' +
+        ev.pos.map(function (x) {
+          return '<tr><td><b>' + e(x.kategori) + '</b></td><td class="r"><span class="pill p-lewat">' + Math.round(x.pct) + '%</span></td><td class="r num out">' + U.rp(x.lebih) + '</td><td class="r num hide-m">' + x.persenLalu + '%</td>' +
+            '<td class="r num"><b>' + x.persenSaran + '%</b>' + (x.persenIni !== x.persenSaran ? ' <span class="muted small">(sekarang ' + x.persenIni + '%)</span>' : '') + '</td></tr>';
+        }).join('') + '</tbody></table></div></div>' +
+        (ev.usulan && !ev.diterapkan ? '<button class="btn btn-gold" data-act="evaluasi">' + ic('wand') + 'Terapkan Saran</button>' : '') + '</div></div>' : '';
+      return pastNote(S) + evCard + '<div class="page-head"><div><h1>Anggaran Bulanan</h1><p>' + e(b.periode.nama) + ' · ' + U.masehi(b.periode.mulai) + ' – ' + U.masehi(b.periode.akhir) + '. Batas tiap pos dihitung dari ' +
         (b.pengaturan.basis_anggaran === 'PASTI' ? 'uang ihsan (pemasukan pasti)' : 'pemasukan pribadi yang sudah masuk') + '.</p></div></div>' +
         '<div class="grid g-12" style="align-items:start">' +
         '<div class="card span-7"><div class="card-head">' + ic('filter') + '<h3>Atur Persentase</h3><span class="small muted" style="margin-left:auto">Basis: <b class="num" style="color:var(--ink)">' + U.rp(r.basis) + '</b></span></div>' +
@@ -297,6 +315,7 @@
       const b = S.boot;
       U.$$('[data-go]', root).forEach(function (x) { x.onclick = function () { App.go(x.dataset.go); }; });
       const sr = root.querySelector('[data-act="saran"]'); if (sr) sr.onclick = function () { Forms.terapkanSaran(); };
+      const evb = root.querySelector('[data-act="evaluasi"]'); if (evb) evb.onclick = function () { Forms.terapkanEvaluasi(); };
       function upd() {
         let total = 0;
         U.POS.forEach(function (k) {
@@ -337,43 +356,69 @@
   // DANA PONDOK & DANA TEROP
   // ============================================================
   function walletPage(dompet) {
+    const isP = dompet === 'Pondok';
+    const L = isP ? { satu: 'Anggaran', baru: 'Anggaran Baru', tanpa: 'Tanpa anggaran', ik: 'landmark', tab: 'Anggaran Pondok' }
+      : { satu: 'Kepanitiaan', baru: 'Kepanitiaan Baru', tanpa: 'Tanpa kepanitiaan', ik: 'users', tab: 'Kepanitiaan' };
     return {
       title: U.DOMPET_LABEL[dompet],
       render: function (S) {
         const b = S.boot, r = b.ringkasan;
-        S.wTab = S.wTab || {}; const tab = S.wTab[dompet] || 'riwayat';
+        S.wTab = S.wTab || {}; const tab = S.wTab[dompet] || 'kelompok';
         const list = b.transaksi.filter(function (t) { return t.dompet === dompet; });
-        const masuk = dompet === 'Pondok' ? r.pondokMasuk : r.teropMasuk, keluar = dompet === 'Pondok' ? r.pondokKeluar : r.teropKeluar;
+        const masuk = isP ? r.pondokMasuk : r.teropMasuk, keluar = isP ? r.pondokKeluar : r.teropKeluar;
         const pinjKeluar = b.pinjaman.filter(function (p) { return p.status === 'Berjalan' && p.dari === dompet; }).reduce(function (s, p) { return s + p.sisa; }, 0);
-        const tone = dompet === 'Pondok' ? 't-em' : 't-gold';
-        const nota = dompet === 'Pondok' ? b.belumNota : [];
-        const kategori = b.kategoriDompet.filter(function (k) { return k.dompet === dompet; });
+        const tone = isP ? 't-em' : 't-gold';
+        const nota = isP ? b.belumNota : [];
+        const kel = (b.kelompokDana || []).filter(function (k) { return k.dompet === dompet; });
+        const aktif = kel.filter(function (k) { return k.status === 'Aktif' && !k.tanpa; });
         let isi = '';
-        if (tab === 'riwayat') {
+        if (tab === 'kelompok') {
+          const selesai = kel.filter(function (k) { return k.status === 'Selesai'; });
+          const tanpa = kel.filter(function (k) { return k.tanpa; });
+          isi = '<div class="row wrap" style="margin-bottom:14px"><div><h3 style="margin:0;font-size:18px">' + L.tab + '</h3><div class="small muted">' +
+            (isP ? 'Setiap anggaran pondok dicatat terpisah: dana masuk, terpakai, dan sisa.' : 'Setiap kepanitiaan dicatat terpisah: dana masuk, pengeluaran, dan sisa kas.') + '</div></div>' +
+            '<button class="btn btn-gold btn-sm" style="margin-left:auto" data-act="kel-baru">' + ic('plus', 'sm') + L.baru + '</button></div>' +
+            (aktif.length || tanpa.length ? '<div class="grid g-3 stagger">' + aktif.concat(tanpa).map(kartuKelompok).join('') + '</div>'
+              : '<div class="card">' + UI.empty(L.ik, 'Belum ada ' + L.satu.toLowerCase(), isP ? 'Contoh: "Anggaran Maulid Nabi" atau "Operasional Asrama Putra".' : 'Contoh: "Panitia Walimah Bpk. Hasan" atau "Panitia Haflah Akhirussanah".',
+                '<button class="btn btn-gold" style="margin-top:12px" data-act="kel-baru">' + ic('plus') + L.baru + '</button>') + '</div>') +
+            (selesai.length ? '<details style="margin-top:22px"><summary class="link" style="cursor:pointer">' + L.satu + ' selesai (' + selesai.length + ')</summary><div class="grid g-3" style="margin-top:12px">' + selesai.map(kartuKelompok).join('') + '</div></details>' : '');
+        } else if (tab === 'riwayat') {
+          const grup = {};
+          list.forEach(function (t) { const k = t.idKelompok || ''; (grup[k] = grup[k] || []).push(t); });
+          const urut = Object.keys(grup).sort(function (a, c) { return a === '' ? 1 : c === '' ? -1 : grup[c][0].tanggal < grup[a][0].tanggal ? -1 : 1; });
           isi = (nota.length ? '<div class="note warn" style="margin-bottom:16px">' + ic('paperclip') + '<div style="flex:1"><b>' + nota.length + ' pengeluaran belum ada nota.</b> Lengkapi agar laporan amanah rapi.</div><button class="btn btn-sm btn-sec" data-act="nota">Lengkapi</button></div>' : '') +
-            '<div class="card solid">' + trxTable(list, { kosong: 'Belum ada catatan ' + U.DOMPET_LABEL[dompet], kosongSub: 'Catatan pada ' + b.periode.nama + ' akan tampil di sini.' }) + '</div>';
+            (list.length ? urut.map(function (id) {
+              const g = grup[id];
+              const nm = id ? U.namaKelompok(id) : L.tanpa;
+              let m = 0, k = 0; g.forEach(function (t) { if (t.jenis === 'Pemasukan') m += t.nominal; else k += t.nominal; });
+              return '<div class="card solid" style="margin-bottom:16px"><div class="card-head"><span class="ic-tile ' + tone + '">' + ic(L.ik) + '</span><div style="min-width:0"><h3>' + e(nm) + '</h3><div class="small muted">' + g.length + ' transaksi · ' + e(b.periode.nama) + '</div></div>' +
+                '<div class="row" style="margin-left:auto;gap:6px;flex-wrap:wrap"><span class="pill p-aman">+ ' + U.rp(m) + '</span><span class="pill p-lewat">− ' + U.rp(k) + '</span></div></div>' +
+                trxTable(g, { cta: false, grup: true }) + '</div>';
+            }).join('') : '<div class="card">' + UI.empty('list', 'Belum ada catatan ' + U.DOMPET_LABEL[dompet], 'Catatan pada ' + b.periode.nama + ' akan tampil di sini, dikelompokkan per ' + L.satu.toLowerCase() + '.') + '</div>');
         } else if (tab === 'galeri') {
           const ada = list.filter(function (t) { return t.adaBukti; });
           isi = '<div class="card solid">' + (ada.length ? '<div class="grid g-4">' + ada.map(function (t) {
-            return '<button class="choice" data-bukti="' + e(t.idBukti) + '" style="text-align:left"><span class="ic-tile t-navy" style="margin-bottom:10px">' + ic('image') + '</span><b class="num">' + U.rp(t.nominal) + '</b><small>' + e(t.keterangan || t.kategori || '-') + '</small><small>' + U.hijriLabel(t.tanggal, 'noYear') + ' · ' + U.masehiPendek(t.tanggal) + '</small></button>';
+            return '<button class="choice" data-bukti="' + e(t.idBukti) + '" style="text-align:left"><span class="ic-tile t-navy" style="margin-bottom:10px">' + ic('image') + '</span><b class="num">' + U.rp(t.nominal) + '</b><small>' + e(t.keterangan || U.namaKelompok(t.idKelompok) || '-') + '</small><small>' + U.hijriLabel(t.tanggal, 'noYear') + ' · ' + U.masehiPendek(t.tanggal) + '</small></button>';
           }).join('') + '</div>' : UI.empty('image', 'Belum ada bukti', 'Foto nota yang diunggah pada periode ini tampil di sini.')) + '</div>';
         } else {
-          isi = '<div class="card solid"><div class="card-head"><h3>Kategori Pengeluaran ' + U.DOMPET_LABEL[dompet] + '</h3><button class="btn btn-sm btn-gold" style="margin-left:auto" data-act="kat-baru">' + ic('plus', 'sm') + 'Tambah</button></div>' +
+          const kategori = b.kategoriDompet.filter(function (k) { return k.dompet === dompet; });
+          isi = '<div class="card solid"><div class="card-head"><h3>Kategori Pengeluaran Dana Pondok</h3><button class="btn btn-sm btn-gold" style="margin-left:auto" data-act="kat-baru">' + ic('plus', 'sm') + 'Tambah</button></div>' +
             kategori.map(function (k) {
               return '<div class="set-row"><span class="ic-tile ' + tone + '">' + ic('package') + '</span><div class="txt"><b>' + e(k.nama) + '</b><small>' + (k.aktif ? 'Aktif' : 'Nonaktif') + '</small></div>' +
                 '<button class="btn btn-sm btn-ghost" data-kat="' + k.id + '">' + ic('edit', 'sm') + 'Ubah</button><label class="switch"><input type="checkbox" data-katon="' + k.id + '" ' + (k.aktif ? 'checked' : '') + '><span></span></label></div>';
             }).join('') + '</div>';
         }
-        return pastNote(S) + '<div class="page-head"><div><span class="eyebrow">' + (dompet === 'Pondok' ? 'Kas amanah pondok' : 'Kas sewa terop') + '</span><h1>' + (dompet === 'Pondok' ? 'Dana Anggaran Pondok' : 'Dana Terop') + '</h1>' +
+        const tabs = [['kelompok', L.ik, L.tab], ['riwayat', 'list', 'Riwayat'], ['galeri', 'image', 'Galeri Bukti']].concat(isP ? [['kategori', 'package', 'Kategori']] : []);
+        return pastNote(S) + '<div class="page-head"><div><span class="eyebrow">' + (isP ? 'Kas amanah pondok' : 'Kas sewa terop') + '</span><h1>' + (isP ? 'Dana Anggaran Pondok' : 'Dana Terop') + '</h1>' +
           '<p>Terpisah dari uang pribadi — tidak memengaruhi anggaran 4 pos.</p></div><div class="actions">' +
-          '<button class="btn btn-sec" data-act="pdf">' + ic('download') + 'Unduh PDF</button><button class="btn btn-gold" data-act="catat-w">' + ic('plus') + (dompet === 'Pondok' ? 'Catat Dana Pondok' : 'Catat Pembayaran Terop') + '</button></div></div>' +
+          '<button class="btn btn-sec" data-act="pdf">' + ic('download') + 'Unduh PDF</button><button class="btn btn-gold" data-act="catat-w">' + ic('plus') + (isP ? 'Catat Dana Pondok' : 'Catat Dana Terop') + '</button></div></div>' +
           '<div class="grid g-4 stagger">' +
           stat('Saldo', U.rp(b.saldo[dompet]), 'wallet', tone, pinjKeluar ? 'Dipinjam ' + U.rp(pinjKeluar) : 'Seluruh periode') +
           stat('Diterima', U.rp(masuk), 'arrowDown', 't-em', b.periode.nama, 'in') +
           stat('Dikeluarkan', U.rp(keluar), 'arrowUp', 't-coral', b.periode.nama, 'out') +
-          (dompet === 'Pondok' ? stat('Belum ada nota', nota.length + ' transaksi', 'paperclip', 't-gold', nota.length ? 'Perlu dilengkapi' : 'Semua lengkap') : stat('Pinjaman keluar', U.rp(pinjKeluar), 'swap', 't-coral', 'Belum dikembalikan')) +
+          stat(L.satu + ' aktif', aktif.length + (isP ? ' anggaran' : ' kepanitiaan'), L.ik, 't-navy', isP && nota.length ? nota.length + ' transaksi belum ada nota' : (pinjKeluar ? 'Pinjaman keluar ' + U.rp(pinjKeluar) : 'Dikelompokkan rapi')) +
           '</div><div class="tabs" style="margin-top:22px">' +
-          ['riwayat', 'galeri', 'kategori'].map(function (t) { return '<button class="' + (tab === t ? 'on' : '') + '" data-tab="' + t + '">' + ic({ riwayat: 'list', galeri: 'image', kategori: 'package' }[t]) + { riwayat: 'Riwayat', galeri: 'Galeri Bukti', kategori: 'Kategori' }[t] + '</button>'; }).join('') +
+          tabs.map(function (t) { return '<button class="' + (tab === t[0] ? 'on' : '') + '" data-tab="' + t[0] + '">' + ic(t[1]) + t[2] + '</button>'; }).join('') +
           '</div>' + isi;
       },
       mount: function (root, S) {
@@ -384,6 +429,11 @@
         root.querySelector('[data-act="pdf"]').onclick = function () { Forms.pdf(dompet); };
         const nt = root.querySelector('[data-act="nota"]'); if (nt) nt.onclick = function () { Forms.daftarNota(); };
         U.$$('[data-bukti]', root).forEach(function (b) { b.onclick = function () { Forms.lihatBukti(b.dataset.bukti); }; });
+        U.$$('[data-act="kel-baru"]', root).forEach(function (b) { b.onclick = function () { Forms.kelompok({ dompet: dompet }); }; });
+        const cari = function (id) { return (S.boot.kelompokDana || []).find(function (k) { return k.dompet === dompet && k.id === id; }); };
+        U.$$('[data-kel-edit]', root).forEach(function (b) { b.onclick = function () { Forms.kelompok(cari(b.dataset.kelEdit)); }; });
+        U.$$('[data-kel-catat]', root).forEach(function (b) { b.onclick = function () { Forms.transaksi({ dompet: dompet, idKelompok: b.dataset.kelCatat }); }; });
+        U.$$('[data-kel-riwayat]', root).forEach(function (b) { b.onclick = function () { Forms.riwayatKelompok(cari(b.dataset.kelRiwayat) || { dompet: dompet, id: '', nama: L.tanpa, tanpa: true }); }; });
         const kb = root.querySelector('[data-act="kat-baru"]'); if (kb) kb.onclick = function () { Forms.kategori({ dompet: dompet }); };
         U.$$('[data-kat]', root).forEach(function (b) { b.onclick = function () { Forms.kategori(S.boot.kategoriDompet.find(function (k) { return k.id === b.dataset.kat; })); }; });
         U.$$('[data-katon]', root).forEach(function (cb) {
@@ -395,6 +445,20 @@
         });
       }
     };
+    function kartuKelompok(k) {
+      const isPg = isP && k.pagu > 0;
+      const tone = isP ? 't-em' : 't-gold';
+      return '<div class="card hover kel ' + (k.tanpa ? 'kel-tanpa' : '') + '" style="display:flex;flex-direction:column"><div class="row"><span class="ic-tile ' + (k.tanpa ? 't-navy' : tone) + '">' + ic(k.tanpa ? 'archive' : L.ik) + '</span>' +
+        '<div style="min-width:0;flex:1"><b class="kel-nama">' + e(k.nama) + '</b><div class="small muted">' + (k.jumlah ? k.jumlah + ' transaksi · terakhir ' + U.masehiPendek(k.terakhir) : 'Belum ada transaksi') + '</div></div>' +
+        (k.tanpa ? '' : '<button class="link" data-kel-edit="' + k.id + '" aria-label="Ubah">' + ic('edit', 'sm') + '</button>') + '</div>' +
+        (k.keterangan && !k.tanpa ? '<div class="small muted" style="margin-top:8px">' + e(k.keterangan) + '</div>' : '') +
+        '<div class="kv" style="margin:12px 0 10px"><span>Dana masuk</span><b class="num in">' + U.rp(k.masuk) + '</b><span>' + (isP ? 'Terpakai' : 'Pengeluaran') + '</span><b class="num out">' + U.rp(k.keluar) + '</b>' +
+        '<span>Sisa kas</span><b class="num">' + U.rp(k.saldo) + '</b>' + (isPg ? '<span>Pagu anggaran</span><b class="num">' + U.rp(k.pagu) + '</b>' : '') + '</div>' +
+        (isPg ? '<div class="row small"><span class="muted">Terpakai dari pagu</span><b style="margin-left:auto" class="' + (k.pct > 100 ? 'out' : '') + '">' + Math.round(k.pct) + '%</b></div><div style="margin:6px 0 4px">' + UI.bar(k.pct, k.pct > 100 ? 'coral' : k.pct >= 80 ? '' : 'em') + '</div>' : '') +
+        (k.status === 'Selesai' ? '<span class="pill p-mute" style="margin-top:6px">' + ic('checkCircle') + 'Selesai</span>' : '') +
+        '<div class="row" style="margin-top:auto;padding-top:12px;gap:8px">' + (k.tanpa || k.status === 'Selesai' ? '' : '<button class="btn btn-gold btn-sm" style="flex:1" data-kel-catat="' + k.id + '">' + ic('plus', 'sm') + 'Catat</button>') +
+        '<button class="btn btn-sec btn-sm" style="flex:1" data-kel-riwayat="' + k.id + '">' + ic('list', 'sm') + 'Riwayat</button></div></div>';
+    }
   }
   function stat(k, v, ik, tone, s, cls) {
     return '<div class="card stat"><div class="k">' + k + '<span class="ic-tile ' + tone + '">' + ic(ik) + '</span></div><div class="v num ' + (cls || '') + '">' + v + '</div><div class="s">' + e(s || '') + '</div></div>';
@@ -579,11 +643,11 @@
     const komp = L.komposisi.map(function (k, i) { return { label: k.nama, value: k.nilai, color: posWarna[k.nama] || warna[i % warna.length] }; });
     const tiles = '<div class="grid g-4 stagger">' + stat('Saldo awal', U.rp(r.saldoAwal), 'wallet', 't-navy', 'Awal periode') + stat('Pemasukan', U.rp(r.pemasukan), 'arrowDown', 't-em', r.jumlahTransaksi + ' transaksi', 'in') +
       stat('Pengeluaran', U.rp(r.pengeluaran), 'arrowUp', 't-coral', L.dompet !== 'Pribadi' && r.tanpaNota ? r.tanpaNota + ' tanpa nota' : 'Periode ini', 'out') + stat('Saldo akhir', U.rp(r.saldoAkhir), 'landmark', 't-gold', 'Akhir periode') + '</div>';
-    const donut = '<div class="card"><div class="card-head">' + ic('pie') + '<h3>' + (L.dompet === 'Pribadi' ? 'Komposisi Pengeluaran per Pos' : 'Pengeluaran per Kategori') + '</h3></div>' +
+    const donut = '<div class="card"><div class="card-head">' + ic('pie') + '<h3>' + (L.dompet === 'Pribadi' ? 'Komposisi Pengeluaran per Pos' : L.dompet === 'Terop' ? 'Pengeluaran per Kepanitiaan' : 'Pengeluaran per Kategori') + '</h3></div>' +
       (komp.some(function (k) { return k.value > 0; }) ? UI.donut(komp, { title: 'TERPAKAI' }) : UI.empty('pie', 'Belum ada pengeluaran', 'Grafik muncul setelah ada pengeluaran.')) + '</div>';
     const hb = L.dompet === 'Pribadi' ? '<div class="card"><div class="card-head">' + ic('filter') + '<h3>Pemakaian vs Batas</h3><span class="small muted" style="margin-left:auto">garis putus = batas</span></div>' +
       UI.hbars(L.komposisi.map(function (k) { return { label: U.POS_SINGKAT[k.nama], value: k.nilai, max: k.batas, color: k.nama === 'Tabungan' ? '#FFB700' : UI.statusInfo(k.status).color }; }), { w: CW.half }) + '</div>'
-      : '<div class="card"><div class="card-head">' + ic('list') + '<h3>Ringkasan Kategori</h3></div>' + (L.komposisi.length ? UI.hbars(L.komposisi.map(function (k, i) { return { label: k.nama.slice(0, CW.half < 420 ? 10 : 16), value: k.nilai, color: warna[i % warna.length] }; }), { w: CW.half }) : UI.empty('list', 'Belum ada data', '')) + '</div>';
+      : '<div class="card"><div class="card-head">' + ic('list') + '<h3>' + (L.dompet === 'Terop' ? 'Ringkasan Kepanitiaan' : 'Ringkasan Kategori') + '</h3></div>' + (L.komposisi.length ? UI.hbars(L.komposisi.map(function (k, i) { return { label: k.nama.slice(0, CW.half < 420 ? 10 : 16), value: k.nilai, color: warna[i % warna.length] }; }), { w: CW.half }) : UI.empty('list', 'Belum ada data', '')) + '</div>';
     const labels = L.tren.map(function (t) { return t.label; });
     const tren = '<div class="card" style="margin-top:22px"><div class="card-head">' + ic('chart') + '<h3>Pemasukan vs Pengeluaran</h3><span class="small muted" style="margin-left:auto">' + L.tren.length + ' bulan Hijriah terakhir</span></div>' +
       UI.groupBars(labels, [{ name: 'Pemasukan', color: '#10B981', values: L.tren.map(function (t) { return t.pemasukan; }) }, { name: 'Pengeluaran', color: '#F26B5B', values: L.tren.map(function (t) { return t.pengeluaran; }) }]
@@ -594,7 +658,11 @@
     const ringkas = L.anggaran ? '<div class="card solid" style="margin-top:22px"><div class="card-head">' + ic('list') + '<h3>Ringkasan Periode</h3></div><div class="table-wrap"><table class="tbl"><thead><tr><th>Pos</th><th class="r">Persen</th><th class="r">Batas</th><th class="r">Terpakai</th><th class="r">Sisa</th><th>Status</th></tr></thead><tbody>' +
       L.anggaran.map(function (a) { return '<tr><td><b>' + e(a.kategori) + '</b></td><td class="r num">' + a.persen + '%</td><td class="r num">' + U.rp(a.batas) + '</td><td class="r num">' + U.rp(a.terpakai) + '</td><td class="r num ' + (a.sisa < 0 ? 'out' : '') + '">' + U.rp(a.sisa) + '</td><td>' + UI.pill(a.status) + '</td></tr>'; }).join('') +
       '</tbody></table></div></div>' : '';
-    return tiles + '<div class="grid g-2" style="margin-top:22px">' + donut + hb + '</div>' + tren + area + ringkas;
+    const rekap = L.rekapKelompok && L.rekapKelompok.length ? '<div class="card solid" style="margin-top:22px"><div class="card-head">' + ic(L.dompet === 'Pondok' ? 'landmark' : 'users') + '<h3>Rekap per ' + (L.dompet === 'Pondok' ? 'Anggaran Pondok' : 'Kepanitiaan') + '</h3><span class="small muted" style="margin-left:auto">' + e(L.periode.nama) + '</span></div>' +
+      '<div class="table-wrap"><table class="tbl"><thead><tr><th>' + (L.dompet === 'Pondok' ? 'Anggaran' : 'Kepanitiaan') + '</th><th class="r">Masuk</th><th class="r">Keluar</th><th class="r">Selisih</th>' + (L.dompet === 'Pondok' ? '<th class="r hide-m">Pagu</th>' : '') + '</tr></thead><tbody>' +
+      L.rekapKelompok.map(function (k) { return '<tr><td><b>' + e(k.nama) + '</b><div class="small muted">' + k.jumlah + ' transaksi</div></td><td class="r num in">' + U.rp(k.masuk) + '</td><td class="r num out">' + U.rp(k.keluar) + '</td><td class="r num">' + U.rp(k.saldo) + '</td>' + (L.dompet === 'Pondok' ? '<td class="r num hide-m">' + (k.pagu ? U.rp(k.pagu) : '—') + '</td>' : '') + '</tr>'; }).join('') +
+      '</tbody></table></div></div>' : '';
+    return tiles + '<div class="grid g-2" style="margin-top:22px">' + donut + hb + '</div>' + rekap + tren + area + ringkas;
   }
 
   // ============================================================
@@ -669,14 +737,14 @@
         '<div class="grid g-2" style="gap:12px"><input class="input" placeholder="Token Fonnte" disabled><input class="input" placeholder="Nomor WhatsApp" disabled></div></div>';
     }
     if (tab === 'kategori') {
-      return ['Pondok', 'Terop'].map(function (d) {
+      return '<div class="note info" style="margin-bottom:18px">' + ic('info') + '<div>Dana Terop tidak memakai kategori — transaksinya dikelompokkan per <b>kepanitiaan</b> (halaman Dana Terop → Kepanitiaan). Anggaran pondok dikelola di <b>Dana Pondok → Anggaran Pondok</b>.</div></div>' + ['Pondok'].map(function (d) {
         const ks = S.boot.kategoriDompet.filter(function (k) { return k.dompet === d; });
         return '<div class="card" style="margin-bottom:22px"><div class="card-head"><span class="ic-tile ' + (d === 'Pondok' ? 't-em' : 't-gold') + '">' + ic(U.DOMPET_IKON[d]) + '</span><h3>Kategori ' + U.DOMPET_LABEL[d] + '</h3>' +
           '<button class="btn btn-sm btn-gold" style="margin-left:auto" data-katbaru="' + d + '">' + ic('plus', 'sm') + 'Tambah</button></div><div class="chips">' +
           ks.map(function (k) { return '<button class="chip ' + (k.aktif ? '' : 'muted') + '" data-kat="' + k.id + '" style="' + (k.aktif ? '' : 'opacity:.55;text-decoration:line-through') + '">' + e(k.nama) + ic('edit', 'sm') + '</button>'; }).join('') + '</div></div>';
       }).join('');
     }
-    return '<div class="card"><div class="center" style="padding:10px 0 16px"><img src="assets/logo-mark.png" alt="" style="width:84px;margin:0 auto 10px"><h2 style="margin:0">Safe<span style="color:var(--amber-ink)">Money</span></h2><div class="muted small">Versi 1.0.0 · Frontend GitHub Pages + Google Apps Script</div></div>' +
+    return '<div class="card"><div class="center" style="padding:10px 0 16px"><img src="assets/logo-mark.png" alt="" style="width:84px;margin:0 auto 10px"><h2 style="margin:0">Safe<span style="color:var(--amber-ink)">Money</span></h2><div class="muted small">Versi 1.1.0 · Frontend GitHub Pages + Google Apps Script</div></div>' +
       '<div class="set-row"><div class="txt"><b>Data tersimpan di</b><small>Google Sheets "SafeMoney_DB" & folder Drive "SafeMoney" milik Anda</small></div></div>' +
       '<div class="set-row"><div class="txt"><b>Lupa PIN?</b><small>Jalankan fungsi resetPin() di editor Apps Script, lalu buat PIN baru di aplikasi.</small></div></div>' +
       '<div class="set-row"><div class="txt"><b>Muat ulang data</b><small>Ambil data terbaru dari server</small></div><button class="btn btn-sm btn-sec" id="reload">' + ic('refresh', 'sm') + 'Muat ulang</button></div>' +

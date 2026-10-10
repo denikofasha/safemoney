@@ -408,5 +408,21 @@
       '<button class="btn btn-gold" onclick="location.reload()">' + ic('refresh') + 'Coba lagi</button></div></div>';
   }
 
+  // Jaga menu bawah tetap di atas toolbar browser HP (Chrome/Safari dengan bilah alamat di bawah)
+  (function pantauViewport() {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const atur = function () {
+      const celah = Math.round(window.innerHeight - vv.height - vv.offsetTop);
+      const keyboard = celah > 150;
+      document.documentElement.classList.toggle('kb-open', keyboard);
+      document.documentElement.style.setProperty('--vv-bottom', (!keyboard && celah > 0 ? celah : 0) + 'px');
+    };
+    vv.addEventListener('resize', atur);
+    vv.addEventListener('scroll', atur);
+    window.addEventListener('orientationchange', function () { setTimeout(atur, 300); });
+    atur();
+  })();
+
   document.addEventListener('DOMContentLoaded', App.start);
 })();

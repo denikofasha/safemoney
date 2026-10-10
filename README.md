@@ -1,4 +1,4 @@
-# SafeMoney
+# SafeMoney v1.1
 
 Aplikasi monitoring & manajemen keuangan pribadi untuk guru pengabdian: uang pribadi, dana anggaran pondok, dan dana terop. Periode bulanan mengikuti kalender Hijriah.
 

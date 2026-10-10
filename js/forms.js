@@ -60,7 +60,7 @@
       id: pre.id || '', jenis: pre.jenis || 'Pengeluaran', dompet: pre.dompet || 'Pribadi',
       kategori: pre.kategori || '', sumber: pre.sumber || '', subkategori: pre.subkategori || '',
       tanggal: pre.tanggal || (App.isCurrentPeriod() ? b.hariIni : (b.hariIni >= b.periode.mulai && b.hariIni <= b.periode.akhir ? b.hariIni : b.periode.akhir)),
-      idTarget: pre.idTarget || ''
+      idTarget: pre.idTarget || '', idKelompok: pre.idKelompok || '', kelBaru: false
     };
     if (!st.kategori && st.dompet === 'Pribadi' && st.jenis === 'Pengeluaran') st.kategori = '';
     const isEdit = !!st.id;
@@ -93,6 +93,20 @@
       m.$$('#tJenis button').forEach(function (x) { x.className = x.dataset.j === j ? 'on ' + (j === 'Pengeluaran' ? 'out-on' : 'in-on') : ''; });
       dyn();
     }
+    function kelompokField() {
+      const isP = st.dompet === 'Pondok';
+      const lbl = isP ? 'Anggaran pondok' : 'Kepanitiaan';
+      const ks = (b.kelompokDana || []).filter(function (k) { return k.dompet === st.dompet && !k.tanpa && (k.status === 'Aktif' || k.id === st.idKelompok); });
+      if (!ks.length) st.kelBaru = true;
+      if (!st.kelBaru && !st.idKelompok && ks.length === 1) st.idKelompok = ks[0].id;
+      return '<div class="field" style="margin-top:14px"><label class="label">' + ic(isP ? 'landmark' : 'users', 'sm') + ' ' + lbl + ' <span class="req">*</span><span class="hint">untuk pengelompokan riwayat</span></label>' +
+        (ks.length ? '<select class="select" id="tKel"><option value="">— Pilih ' + lbl.toLowerCase() + ' —</option>' +
+          ks.map(function (k) { return '<option value="' + k.id + '" ' + (!st.kelBaru && st.idKelompok === k.id ? 'selected' : '') + '>' + e(k.nama) + (k.status === 'Selesai' ? ' (selesai)' : '') + '</option>'; }).join('') +
+          '<option value="__baru" ' + (st.kelBaru ? 'selected' : '') + '>＋ Buat ' + lbl.toLowerCase() + ' baru…</option></select>' : '') +
+        (st.kelBaru ? '<div class="grid ' + (isP ? 'g-2' : '') + '" style="gap:10px;margin-top:' + (ks.length ? '10px' : '0') + '">' +
+          '<input class="input" id="tKelNama" maxlength="80" placeholder="' + (isP ? 'Nama anggaran, mis. Anggaran Maulid Nabi' : 'Nama kepanitiaan, mis. Panitia Walimah Bpk. Hasan') + '" value="' + e(st.kelNama || '') + '">' +
+          (isP ? '<div class="input-pre"><span>Rp</span><input class="input num" id="tKelPagu" inputmode="numeric" placeholder="Pagu (opsional)" value="' + e(st.kelPagu || '') + '"></div>' : '') + '</div>' : '') + '</div>';
+    }
     function dyn() {
       const box = m.$('#tDyn');
       let h = '';
@@ -120,6 +134,11 @@
           '<button class="choice ' + (lain || st.sumber === 'Lainnya' ? 'on' : '') + '" data-src="Lainnya"><b>Lainnya…</b><small>Ketik manual</small><span class="chk">' + ic('checkCircle', 'sm') + '</span></button></div>' +
           '<input class="input ' + (lain || st.sumber === 'Lainnya' ? '' : 'hidden') + '" id="tSrcIn" style="margin-top:10px" placeholder="Nama sumber, mis. Honor mengajar" value="' + e(lain ? st.sumber : '') + '">' +
           '<div class="note ok" style="margin-top:12px">' + ic('info') + '<div>Pemasukan langsung memperbarui saldo dan batas 4 pos anggaran.</div></div>';
+      } else {
+        h += kelompokField();
+      }
+      if (st.dompet === 'Pribadi') { /* sudah */ } else if (st.jenis === 'Pengeluaran' && st.dompet === 'Terop') {
+        h += '';
       } else if (st.jenis === 'Pengeluaran') {
         const ks = b.kategoriDompet.filter(function (k) { return k.dompet === st.dompet && k.aktif; });
         if (!st.kategori || !ks.some(function (k) { return k.nama === st.kategori; })) st.kategori = st.kategori && pre.id ? st.kategori : (ks[0] ? ks[0].nama : 'Lainnya');
@@ -128,10 +147,14 @@
           (ks.some(function (k) { return k.nama === st.kategori; }) ? '' : '<option selected>' + e(st.kategori) + '</option>') + '</select></div>' +
           (st.dompet === 'Pondok' && !isEdit ? '<div class="note warn" style="margin-top:12px">' + ic('paperclip') + '<div>Dana amanah: sangat disarankan melampirkan <b>foto nota</b>.</div></div>' : '');
       } else {
-        h += '<div class="field" style="margin-top:14px"><label class="label">' + (st.dompet === 'Terop' ? 'Penyewa / acara' : 'Dari siapa') + ' <span class="req">*</span></label><input class="input" id="tSrcW" placeholder="' +
-          (st.dompet === 'Terop' ? 'Contoh: Walimah Bpk. Hasan – 2 terop' : 'Contoh: Bendahara Pondok') + '" value="' + e(st.sumber) + '"></div>';
+        h += '<div class="field" style="margin-top:14px"><label class="label">' + (st.dompet === 'Terop' ? 'Pembayar / penyewa' : 'Dari siapa') + ' <span class="hint">opsional</span></label><input class="input" id="tSrcW" placeholder="' +
+          (st.dompet === 'Terop' ? 'Contoh: Bpk. Hasan (tuan rumah)' : 'Contoh: Bendahara Pondok') + '" value="' + e(st.sumber) + '"></div>';
       }
       box.innerHTML = h;
+      const kn = m.$('#tKelNama'); if (kn) kn.oninput = function () { st.kelNama = kn.value; };
+      const kp = m.$('#tKelPagu'); if (kp) kp.oninput = function () { kp.value = U.fmtInput(kp.value); st.kelPagu = kp.value; };
+      const ksel = m.$('#tKel');
+      if (ksel) ksel.onchange = function () { if (ksel.value === '__baru') { st.kelBaru = true; st.idKelompok = ''; } else { st.kelBaru = false; st.idKelompok = ksel.value; } dyn(); };
       m.$$('#tDyn [data-k]').forEach(function (x) { x.onclick = function () { st.kategori = x.dataset.k; st.subkategori = ''; dyn(); }; });
       m.$$('#tDyn [data-s]').forEach(function (x) { x.onclick = function () { st.subkategori = st.subkategori === x.dataset.s ? '' : x.dataset.s; m.$$('#tSub .chip').forEach(function (c) { c.classList.toggle('on', c.dataset.s === st.subkategori); }); m.$('#tSubIn').value = ''; }; });
       const si = m.$('#tSubIn'); if (si) si.oninput = function () { if (si.value) { st.subkategori = si.value; m.$$('#tSub .chip').forEach(function (c) { c.classList.remove('on'); }); } };
@@ -169,7 +192,7 @@
     m.$$('#tDompet [data-d]').forEach(function (x) {
       x.onclick = function () {
         if (terkunci) return;
-        st.dompet = x.dataset.d; st.kategori = ''; st.sumber = ''; st.subkategori = '';
+        st.dompet = x.dataset.d; st.kategori = ''; st.sumber = ''; st.subkategori = ''; st.idKelompok = ''; st.kelBaru = false;
         m.$$('#tDompet [data-d]').forEach(function (c) { c.classList.toggle('on', c === x); });
         dyn();
       };
@@ -182,13 +205,23 @@
       if (!nominal) return UI.toast('Isi nominal dulu.', 'error');
       if (!st.tanggal) return UI.toast('Pilih tanggal.', 'error');
       if (st.dompet === 'Pribadi' && st.jenis === 'Pengeluaran' && !st.kategori) return UI.toast('Pilih salah satu dari 4 pos anggaran.', 'error');
-      if (st.jenis === 'Pemasukan' && (!st.sumber || st.sumber === 'Lainnya' && !(m.$('#tSrcIn') || {}).value)) return UI.toast('Isi sumber pemasukan.', 'error');
+      if (st.dompet === 'Pribadi' && st.jenis === 'Pemasukan' && (!st.sumber || st.sumber === 'Lainnya' && !(m.$('#tSrcIn') || {}).value)) return UI.toast('Isi sumber pemasukan.', 'error');
+      const KL = st.dompet === 'Pondok' ? 'anggaran pondok' : 'kepanitiaan';
+      let kelompokBaru;
+      if (st.dompet !== 'Pribadi') {
+        if (st.kelBaru) {
+          const nm = (m.$('#tKelNama') || {}).value || '';
+          if (!nm.trim()) return UI.toast('Isi nama ' + KL + ' baru.', 'error');
+          kelompokBaru = { nama: nm.trim(), pagu: U.parseNum((m.$('#tKelPagu') || {}).value) };
+        } else if (!st.idKelompok) return UI.toast('Pilih ' + KL + ' dulu.', 'error');
+      }
       const payload = {
         id: st.id || undefined, tanggal: st.tanggal, waktu: pre.waktu || U.nowTime(), dompet: st.dompet, jenis: st.jenis,
         kategori: st.jenis === 'Pengeluaran' ? st.kategori : '', sumber: st.jenis === 'Pemasukan' ? st.sumber : '',
         subkategori: st.jenis === 'Pengeluaran' && st.dompet === 'Pribadi' ? st.subkategori : '', nominal: nominal,
         keterangan: m.$('#tKet').value.trim(), idTarget: st.kategori === 'Tabungan' ? st.idTarget : '',
-        bukti: bukti.val ? { mime: bukti.val.mime, data: bukti.val.data } : undefined, _adaBukti: pre.adaBukti, refTipe: pre.refTipe
+        bukti: bukti.val ? { mime: bukti.val.mime, data: bukti.val.data } : undefined, _adaBukti: pre.adaBukti, refTipe: pre.refTipe,
+        idKelompok: st.dompet !== 'Pribadi' && !st.kelBaru ? st.idKelompok : '', kelompokBaru: kelompokBaru
       };
       // peringatan sebelum melewati batas (PRD US-D2)
       const a = b.anggaran.find(function (x) { return x.kategori === payload.kategori; });
@@ -227,7 +260,8 @@
         '<div class="kv"><span>Tanggal</span><b>' + e(U.hijriLabel(t.tanggal, 'H')) + '</b><span>Masehi</span><b>' + U.masehi(t.tanggal, true) + (t.waktu ? ' · ' + e(t.waktu) : '') + '</b>' +
         '<span>Dompet</span><b>' + U.DOMPET_LABEL[t.dompet] + '</b>' +
         (t.jenis === 'Pemasukan' ? '<span>Sumber</span><b>' + e(t.sumber || '-') + '</b>' : '<span>Kategori</span><b>' + e(t.kategori || '-') + '</b>' + (t.subkategori ? '<span>Subkategori</span><b>' + e(t.subkategori) + '</b>' : '')) +
-        (tgt ? '<span>Target</span><b>' + e(tgt.nama) + '</b>' : '') + (t.refTipe === 'hutang' ? '<span>Jenis</span><b>Pembayaran hutang</b>' : '') + '<span>ID</span><b class="small">' + e(t.id) + '</b></div>' +
+        (tgt ? '<span>Target</span><b>' + e(tgt.nama) + '</b>' : '') +
+        (t.dompet !== 'Pribadi' ? '<span>' + (t.dompet === 'Pondok' ? 'Anggaran' : 'Kepanitiaan') + '</span><b>' + e(U.namaKelompok(t.idKelompok) || '— belum dikelompokkan') + '</b>' : '') + (t.refTipe === 'hutang' ? '<span>Jenis</span><b>Pembayaran hutang</b>' : '') + '<span>ID</span><b class="small">' + e(t.id) + '</b></div>' +
         (t.adaBukti ? '<button class="btn btn-sec btn-block" id="dBukti">' + ic('image') + 'Lihat bukti / nota</button>' :
           t.jenis === 'Pengeluaran' || t.dompet !== 'Pribadi' ? '<label class="dropzone" style="cursor:pointer">' + ic('upload') + '<span id="dUpT">' + (t.dompet === 'Pondok' ? 'Belum ada nota — unggah sekarang' : 'Unggah bukti (opsional)') + '</span><input type="file" id="dUp" accept="image/*,application/pdf" hidden></label>' : ''),
       foot: '<button class="btn btn-danger-out" id="dDel">' + ic('trash') + 'Hapus</button><button class="btn btn-navy" id="dEdit">' + ic('edit') + 'Ubah</button>'
@@ -586,6 +620,91 @@
       const nama = m.$('#kgNama').value.trim(); if (!nama) return UI.toast('Isi nama kategori.', 'error');
       UI.busy(this, true);
       try { await API.call('simpanKategori', { id: k.id, dompet: k.dompet, nama: nama, aktif: k.id ? m.$('#kgAktif').checked : true }); m.close(); UI.toast('Kategori tersimpan.'); await App.refresh(true); }
+      catch (err) { UI.toast(err.message, 'error'); UI.busy(this, false); }
+    };
+  };
+
+  // ============================================================
+  // ANGGARAN PONDOK & KEPANITIAAN
+  // ============================================================
+  F.kelompok = function (k) {
+    k = k || {};
+    const isP = k.dompet === 'Pondok';
+    const lbl = isP ? 'Anggaran Pondok' : 'Kepanitiaan';
+    const m = UI.modal({
+      title: (k.id ? 'Ubah ' : 'Tambah ') + lbl, icon: isP ? 'landmark' : 'users', tone: isP ? 't-em' : 't-gold', size: 'narrow',
+      sub: isP ? 'Kelompok dana amanah pondok' : 'Kelompok dana per kepanitiaan',
+      body: '<div class="field"><label class="label">Nama ' + lbl.toLowerCase() + ' <span class="req">*</span></label><input class="input" id="kNama" maxlength="80" value="' + e(k.nama || '') + '" placeholder="' +
+          (isP ? 'Contoh: Anggaran Maulid Nabi 1448' : 'Contoh: Panitia Walimah Bpk. Hasan') + '" autofocus></div>' +
+        (isP ? '<div class="field"><label class="label">Pagu anggaran <span class="hint">opsional · batas dana yang disetujui</span></label><div class="input-pre"><span>Rp</span><input class="input num" id="kPagu" inputmode="numeric" value="' + (k.pagu ? U.fmtInput(k.pagu) : '') + '"></div></div>' : '') +
+        '<div class="field"><label class="label">Keterangan <span class="hint">opsional</span></label><input class="input" id="kKet" maxlength="200" value="' + e(k.keterangan || '') + '" placeholder="' + (isP ? 'Contoh: Kegiatan bulan Rabiul Awal' : 'Contoh: Sewa 3 terop + kursi, 12 Okt') + '"></div>' +
+        (k.id ? '<div class="set-row" style="margin-top:8px"><div class="txt"><b>Tandai selesai</b><small>' + lbl + ' selesai tidak muncul lagi di pilihan form</small></div><label class="switch"><input type="checkbox" id="kSelesai" ' + (k.status === 'Selesai' ? 'checked' : '') + '><span></span></label></div>' : ''),
+      foot: (k.id && !k.jumlah ? '<button class="btn btn-danger-out" id="kHapus">' + ic('trash') + 'Hapus</button>' : '<button class="btn btn-sec" data-close>Batal</button>') +
+        '<button class="btn btn-gold" id="kSimpan">' + ic('save') + 'Simpan</button>'
+    });
+    const pg = m.$('#kPagu'); if (pg) pg.oninput = function () { pg.value = U.fmtInput(pg.value); };
+    m.$('#kSimpan').onclick = async function () {
+      const nama = m.$('#kNama').value.trim(); if (!nama) return UI.toast('Isi nama ' + lbl.toLowerCase() + '.', 'error');
+      UI.busy(this, true);
+      try {
+        await API.call('simpanKelompok', { id: k.id, dompet: k.dompet, nama: nama, pagu: pg ? U.parseNum(pg.value) : 0, keterangan: m.$('#kKet').value, status: (m.$('#kSelesai') || {}).checked ? 'Selesai' : 'Aktif' });
+        m.close(); UI.toast(lbl + ' tersimpan.'); await App.refresh(true);
+      } catch (err) { UI.toast(err.message, 'error'); UI.busy(this, false); }
+    };
+    const h = m.$('#kHapus');
+    if (h) h.onclick = async function () {
+      const ok = await UI.confirm({ title: 'Hapus ' + lbl.toLowerCase() + '?', text: k.nama, ok: 'Hapus' });
+      if (!ok) return;
+      try { await API.call('simpanKelompok', { id: k.id, dompet: k.dompet, hapus: true }); m.close(); UI.toast('Dihapus.'); await App.refresh(true); } catch (err) { UI.toast(err.message, 'error'); }
+    };
+  };
+
+  F.riwayatKelompok = function (k) {
+    const isP = k.dompet === 'Pondok';
+    const m = UI.modal({
+      title: k.nama, icon: isP ? 'landmark' : 'users', tone: isP ? 't-em' : 't-gold', size: 'wide',
+      sub: (isP ? 'Anggaran Pondok' : 'Kepanitiaan') + ' · seluruh periode',
+      body: '<div class="grid g-3" style="gap:10px;margin-bottom:14px">' +
+        '<div class="mini-row"><div><span class="muted">Dana masuk</span><b class="num in">' + U.rp(k.masuk || 0) + '</b></div></div>' +
+        '<div class="mini-row"><div><span class="muted">' + (isP ? 'Terpakai' : 'Pengeluaran') + '</span><b class="num out">' + U.rp(k.keluar || 0) + '</b></div></div>' +
+        '<div class="mini-row"><div><span class="muted">Sisa kas' + (k.pagu ? ' · pagu ' + U.rp(k.pagu) : '') + '</span><b class="num">' + U.rp(k.saldo || 0) + '</b></div></div></div>' +
+        '<div id="rkList"><div class="skel" style="height:200px"></div></div>',
+      foot: (k.tanpa || k.status === 'Selesai' ? '' : '<button class="btn btn-gold" id="rkCatat">' + ic('plus') + 'Catat ke ' + (isP ? 'anggaran' : 'kepanitiaan') + ' ini</button>') +
+        '<button class="btn btn-sec" id="rkPdf">' + ic('download') + 'PDF bulan ini</button>'
+    });
+    const ct = m.$('#rkCatat'); if (ct) ct.onclick = function () { m.close(); F.transaksi({ dompet: k.dompet, idKelompok: k.id }); };
+    m.$('#rkPdf').onclick = function () { m.close(); F.pdf(k.dompet); };
+    API.call('transaksiList', { dompet: k.dompet, idKelompok: k.id || '__tanpa' }).then(function (d) {
+      const box = m.$('#rkList'); if (!box) return;
+      if (!d.items.length) { box.innerHTML = UI.empty('list', 'Belum ada transaksi', ''); return; }
+      box.innerHTML = '<ul class="tx-list">' + d.items.map(function (t) {
+        const i = UI.trxIcon(t);
+        return '<li data-id="' + e(t.id) + '"><span class="ic-tile ' + i.tone + '">' + ic(i.ik) + '</span><div class="mid"><b>' + e(t.keterangan || t.sumber || t.kategori || '-') + '</b><small>' +
+          e(U.hijriLabel(t.tanggal)) + ' · ' + U.masehiPendek(t.tanggal) + (t.kategori ? ' · ' + e(t.kategori) : '') + (t.adaBukti ? ' · 📎' : '') + '</small></div>' +
+          '<div class="rt"><b class="num ' + (t.jenis === 'Pemasukan' ? 'amt-in' : 'amt-out') + '">' + U.rpSigned(t) + '</b></div></li>';
+      }).join('') + '</ul>';
+      U.$$('[data-id]', box).forEach(function (li) { li.onclick = function () { const t = d.items.find(function (x) { return x.id === li.dataset.id; }); m.close(); F.detailTransaksi(t); }; });
+    }).catch(function (err) { const box = m.$('#rkList'); if (box) box.innerHTML = '<div class="note danger">' + e(err.message) + '</div>'; });
+  };
+
+  F.terapkanEvaluasi = function () {
+    const b = S.boot, ev = b.evaluasiLalu;
+    if (!ev || !ev.usulan) return UI.toast('Tidak ada saran evaluasi.', 'info');
+    const now = {}; b.anggaran.forEach(function (a) { now[a.kategori] = a.persen; });
+    const m = UI.modal({
+      title: 'Saran dari Evaluasi Bulan Lalu', icon: 'history', tone: 't-gold', sub: e(ev.periode) + ' · total lebih ' + U.rp(ev.totalLebih),
+      body: '<p class="muted" style="margin-top:0">Pos yang bulan lalu melebihi batas diturunkan persennya sebesar kelebihan itu. Selisihnya dialihkan ke <b>Tabungan</b>, sehingga total tetap 100%.</p>' +
+        U.POS.map(function (k) {
+          const a = now[k], u = ev.usulan[k];
+          return '<div style="margin-bottom:14px"><div class="row small"><b>' + k + '</b><span class="muted num" style="margin-left:auto">' + a + '% → <b style="color:var(--ink)">' + u + '%</b></span></div>' +
+            '<div class="row" style="gap:6px;margin-top:6px"><div style="flex:1">' + UI.bar(a, 'navy') + '</div><div style="flex:1">' + UI.bar(u, k === 'Tabungan' ? 'em' : u < a ? 'coral' : '') + '</div></div></div>';
+        }).join('') + '<div class="note info">' + ic('info') + '<div>Kiri = sekarang, kanan = saran. Anda tetap bisa mengatur manual di halaman Anggaran.</div></div>',
+      foot: '<button class="btn btn-sec" data-close>Nanti saja</button><button class="btn btn-gold" id="evOk">' + ic('checkCircle') + 'Terapkan</button>'
+    });
+    UI.animate(m.el);
+    m.$('#evOk').onclick = async function () {
+      UI.busy(this, true);
+      try { await API.call('simpanAnggaran', { periode: b.periodeIni, persen: ev.usulan }); m.close(); UI.toast('Persentase bulan ini disesuaikan. Bismillah, lebih terkendali!'); await App.refresh(true); }
       catch (err) { UI.toast(err.message, 'error'); UI.busy(this, false); }
     };
   };

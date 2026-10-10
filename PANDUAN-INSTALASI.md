@@ -1,4 +1,4 @@
-# Panduan Instalasi SafeMoney
+# Panduan Instalasi SafeMoney (v1.1)
 
 Aplikasi SafeMoney terdiri dari dua bagian. Keduanya dipasang terpisah:
 
@@ -101,6 +101,20 @@ Klik **Save**. Tunggu 1–2 menit sampai muncul tulisan *"Your site is live at h
 | **Trigger pengingat harian** | Dipasang otomatis oleh setup (±06.00 WIB). Kalau terhapus, jalankan fungsi `pasangTrigger`. |
 | **Koreksi awal bulan Hijriah** | Di aplikasi, buka **Pengaturan → Kalender Hijriah**, lalu tekan −1 / +1 hari. |
 | **Cadangan data** | Spreadsheet **SafeMoney_DB** bisa disalin kapan saja: File → Make a copy. |
+
+## Memperbarui dari v1.0 ke v1.1
+
+Isi v1.1: Anggaran Pondok, Kepanitiaan Dana Terop, evaluasi bulan lalu, dan perbaikan menu bawah di HP.
+
+1. **Backend:** di Apps Script, ganti seluruh isi `Code.gs` dengan `Kode.gs` versi baru, lalu **Ctrl+S**. Setelah itu buka **Deploy → Manage deployments → ✏️ Edit → Version: New version → Deploy**. URL `/exec` tetap sama.
+   - Tidak perlu menjalankan setup lagi. Saat aplikasi dibuka, sheet **Kelompok_Dana** dan kolom **id_kelompok** dibuat otomatis. Data lama tetap aman dan masuk kelompok "Tanpa anggaran/kepanitiaan".
+2. **Frontend:** ekstrak `safemoney-update-v1.1.zip` lalu **timpa** ke folder `safemoney` Anda. ZIP ini sengaja tidak berisi `js/config.js`, jadi URL backend Anda tidak berubah. Kemudian jalankan:
+   ```
+   git add .
+   git commit -m "Update v1.1"
+   git push
+   ```
+3. Buka aplikasi di HP, lalu tarik ke bawah untuk muat ulang atau buka di tab baru.
 
 ## Masalah umum
 
