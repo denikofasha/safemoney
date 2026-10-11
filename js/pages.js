@@ -198,7 +198,7 @@
         '<select class="select" id="fJenis"><option value="">Semua jenis</option><option ' + (f.jenis === 'Pemasukan' ? 'selected' : '') + '>Pemasukan</option><option ' + (f.jenis === 'Pengeluaran' ? 'selected' : '') + '>Pengeluaran</option></select>' +
         '<select class="select" id="fKategori"><option value="">Semua kategori</option>' + kat.map(function (k) { return '<option ' + (f.kategori === k ? 'selected' : '') + '>' + e(k) + '</option>'; }).join('') + '</select>' +
         '</div><div class="row wrap" style="margin-top:10px;gap:8px"><select class="select" id="fKelompok" style="height:40px;max-width:420px"><option value="">Semua anggaran & kepanitiaan</option>' +
-        (S.boot.kelompokDana || []).map(function (k) { const v = k.id || '__tanpa'; return '<option value="' + v + '" ' + (f.idKelompok === v ? 'selected' : '') + '>' + (k.dompet === 'Pondok' ? 'Pondok · ' : 'Terop · ') + e(k.nama) + '</option>'; }).join('') + '</select></div><div class="row wrap" style="margin-top:10px;gap:8px"><span class="small muted">Rentang:</span>' +
+        (S.boot.kelompokDana || []).filter(function (k) { return !(k.tanpa && k.dompet === 'Terop'); }).map(function (k) { const v = k.id || '__tanpa'; return '<option value="' + v + '" ' + (f.idKelompok === v ? 'selected' : '') + '>' + (k.dompet === 'Pondok' ? 'Pondok · ' : 'Terop · ') + e(k.nama) + '</option>'; }).join('') + '</select></div><div class="row wrap" style="margin-top:10px;gap:8px"><span class="small muted">Rentang:</span>' +
         '<input type="date" class="input" id="fDari" style="height:40px;width:auto" value="' + e(f.dari || '') + '"><span class="muted">–</span><input type="date" class="input" id="fSampai" style="height:40px;width:auto" value="' + e(f.sampai || '') + '">' +
         '<input class="input num" id="fMin" inputmode="numeric" placeholder="Min Rp" style="height:40px;width:130px" value="' + e(f.min ? U.fmtInput(f.min) : '') + '">' +
         '<input class="input num" id="fMax" inputmode="numeric" placeholder="Maks Rp" style="height:40px;width:130px" value="' + e(f.max ? U.fmtInput(f.max) : '') + '">' +
@@ -294,10 +294,10 @@
         '<div class="note" id="totalNote" style="margin-top:12px"></div>' +
         '<div class="row wrap" style="margin-top:14px;gap:16px"><span class="small strong">Berlaku mulai:</span>' +
         '<label class="row small"><input type="radio" name="mulai" value="ini" checked> Periode ini</label><label class="row small"><input type="radio" name="mulai" value="berikutnya"> Periode berikutnya</label></div>' +
-        '<div class="row" style="margin-top:16px;justify-content:flex-end;gap:10px"><button class="btn btn-sec" id="angReset">Batalkan perubahan</button><button class="btn btn-gold" id="angSave">' + ic('save') + 'Simpan Anggaran</button></div></div>' +
+        '<div class="row btn-row" style="margin-top:16px;justify-content:flex-end;gap:10px"><button class="btn btn-sec" id="angReset">' + ic('refresh', 'sm') + 'Batalkan perubahan</button><button class="btn btn-gold" id="angSave">' + ic('save') + 'Simpan Anggaran</button></div></div>' +
 
         '<div class="span-5 stack">' +
-        '<div class="card"><div class="card-head">' + ic('chart') + '<h3>Simulasi Nominal</h3></div><table class="tbl" style="margin:0 -22px;width:calc(100% + 44px)"><thead><tr><th>Pos</th><th class="r">Ihsan</th><th class="r">Realisasi</th></tr></thead><tbody id="simBody"></tbody></table>' +
+        '<div class="card"><div class="card-head">' + ic('chart') + '<h3>Simulasi Nominal</h3></div><div class="table-wrap" style="margin-bottom:0"><table class="tbl"><thead><tr><th>Pos</th><th class="r">Ihsan</th><th class="r">Realisasi</th></tr></thead><tbody id="simBody"></tbody></table></div>' +
         '<div class="small muted" style="margin-top:10px">Ihsan = ' + U.rp(r.ihsanBulanan) + ' (perkiraan di Pengaturan) · Realisasi = ' + U.rp(r.pemasukan) + '</div></div>' +
         '<div class="card"><div class="card-head">' + ic('alert') + '<h3>Status Pos Saat Ini</h3></div>' + b.anggaran.map(function (a) {
           const tone = a.status === 'Aman' ? 'em' : a.status === 'Melebihi batas' ? 'coral' : a.status === 'Berjalan' ? 'navy' : '';
@@ -324,7 +324,7 @@
         });
         const n = U.$('#totalNote', root);
         n.className = 'note ' + (total === 100 ? 'ok' : 'danger');
-        n.innerHTML = ic(total === 100 ? 'checkCircle' : 'alertCircle') + '<div style="flex:1"><b>Total: ' + total + '%</b>' + (total === 100 ? ' — siap disimpan.' : ' — total harus tepat 100% (' + (total > 100 ? 'kurangi ' + (total - 100) : 'tambah ' + (100 - total)) + '%).') + '</div>' + UI.bar(Math.min(total, 100), total === 100 ? 'em' : 'coral').replace('class="bar', 'style="width:120px" class="bar');
+        n.innerHTML = ic(total === 100 ? 'checkCircle' : 'alertCircle') + '<div style="flex:1"><b>Total: ' + total + '%</b>' + (total === 100 ? ' — siap disimpan.' : ' — total harus tepat 100% (' + (total > 100 ? 'kurangi ' + (total - 100) : 'tambah ' + (100 - total)) + '%).') + '</div>' + UI.bar(Math.min(total, 100), total === 100 ? 'em' : 'coral').replace('class="bar', 'style="width:120px" class="hide-m bar');
         U.$('#angSave', root).disabled = total !== 100;
         U.$('#simBody', root).innerHTML = U.POS.map(function (k) {
           return '<tr><td>' + U.POS_SINGKAT[k] + ' <span class="muted small">' + S.ang[k] + '%</span></td><td class="r num">' + U.rp(b.ringkasan.ihsanBulanan * S.ang[k] / 100) + '</td><td class="r num">' + U.rp(b.ringkasan.pemasukan * S.ang[k] / 100) + '</td></tr>';
@@ -374,7 +374,7 @@
         let isi = '';
         if (tab === 'kelompok') {
           const selesai = kel.filter(function (k) { return k.status === 'Selesai'; });
-          const tanpa = kel.filter(function (k) { return k.tanpa; });
+          const tanpa = isP ? kel.filter(function (k) { return k.tanpa; }) : []; // Dana Terop: kartu "Tanpa kepanitiaan" tidak ditampilkan
           isi = '<div class="row wrap" style="margin-bottom:14px"><div><h3 style="margin:0;font-size:18px">' + L.tab + '</h3><div class="small muted">' +
             (isP ? 'Setiap anggaran pondok dicatat terpisah: dana masuk, terpakai, dan sisa.' : 'Setiap kepanitiaan dicatat terpisah: dana masuk, pengeluaran, dan sisa kas.') + '</div></div>' +
             '<button class="btn btn-gold btn-sm" style="margin-left:auto" data-act="kel-baru">' + ic('plus', 'sm') + L.baru + '</button></div>' +
@@ -744,7 +744,7 @@
           ks.map(function (k) { return '<button class="chip ' + (k.aktif ? '' : 'muted') + '" data-kat="' + k.id + '" style="' + (k.aktif ? '' : 'opacity:.55;text-decoration:line-through') + '">' + e(k.nama) + ic('edit', 'sm') + '</button>'; }).join('') + '</div></div>';
       }).join('');
     }
-    return '<div class="card"><div class="center" style="padding:10px 0 16px"><img src="assets/logo-mark.png" alt="" style="width:84px;margin:0 auto 10px"><h2 style="margin:0">Safe<span style="color:var(--amber-ink)">Money</span></h2><div class="muted small">Versi 1.1.0 · Frontend GitHub Pages + Google Apps Script</div></div>' +
+    return '<div class="card"><div class="center" style="padding:10px 0 16px"><img src="assets/logo-mark.png" alt="" style="width:84px;margin:0 auto 10px"><h2 style="margin:0">Safe<span style="color:var(--amber-ink)">Money</span></h2><div class="muted small">Versi 1.1.1 · Frontend GitHub Pages + Google Apps Script</div></div>' +
       '<div class="set-row"><div class="txt"><b>Data tersimpan di</b><small>Google Sheets "SafeMoney_DB" & folder Drive "SafeMoney" milik Anda</small></div></div>' +
       '<div class="set-row"><div class="txt"><b>Lupa PIN?</b><small>Jalankan fungsi resetPin() di editor Apps Script, lalu buat PIN baru di aplikasi.</small></div></div>' +
       '<div class="set-row"><div class="txt"><b>Muat ulang data</b><small>Ambil data terbaru dari server</small></div><button class="btn btn-sm btn-sec" id="reload">' + ic('refresh', 'sm') + 'Muat ulang</button></div>' +
