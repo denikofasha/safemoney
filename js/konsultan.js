@@ -28,24 +28,35 @@
   function chat() { const S = S_(); if (!S.chat) { const c = U.store.get(K_CHAT, []); S.chat = Array.isArray(c) ? c : []; } return S.chat; }
   function simpan() {
     const S = S_(); S.chat = chat().slice(-MAKS_PESAN);
-    U.store.set(K_CHAT, S.chat.map(function (m) { const c = Object.assign({}, m); delete c.foto; return c; })); // foto tidak disimpan (hemat memori)
+    U.store.set(K_CHAT, S.chat.map(function (m) { const c = Object.assign({}, m); delete c.foto; delete c.gbr; return c; })); // foto tidak disimpan (hemat memori)
   }
   function kabari() { C.dengar.forEach(function (f) { try { f(); } catch (err) { /* abaikan */ } }); }
   C.kirim = async function (teks, gambar) {
     teks = String(teks || '').trim();
     if ((!teks && !gambar) || C.menunggu) return;
     if (!teks) teks = 'Bagaimana pendapat Anda tentang foto ini?';
-    const riwayat = chat().slice(-12).map(function (m) { return { peran: m.peran, teks: m.teks }; });
+    // pesan gagal (beserta pertanyaannya) tidak ikut dikirim sebagai riwayat
+    const riwayat = chat().filter(function (m, i, a) { return !m.gagal && !(a[i + 1] && a[i + 1].gagal); }).slice(-12).map(function (m) { return { peran: m.peran, teks: m.teks }; });
     chat().push({ peran: 'user', teks: teks, adaFoto: !!gambar, foto: gambar ? gambar.preview : '', t: Date.now() });
     C.menunggu = true; simpan(); kabari();
     try {
       const r = await API.call('konsultasi', { pesan: teks, riwayat: riwayat, gambar: gambar ? { mime: gambar.mime, data: gambar.data } : undefined }, { timeout: 150000 });
-      chat().push({ peran: 'ai', teks: r.jawaban, usulan: r.usulan, catatanUsulan: r.catatanUsulan, dibaca: r.dibaca, t: Date.now() });
+      chat().push({ peran: 'ai', teks: r.jawaban, usulan: r.usulan, catatanUsulan: r.catatanUsulan, dibaca: r.dibaca, cadangan: r.cadangan ? r.model : '', t: Date.now() });
     } catch (err) {
-      chat().push({ peran: 'ai', teks: '⚠️ ' + err.message, gagal: true, t: Date.now() });
+      chat().push({ peran: 'ai', teks: '⚠️ ' + err.message, gagal: true, ulang: teks, gbr: gambar || null, t: Date.now() });
     } finally { C.menunggu = false; simpan(); kabari(); }
   };
   C.baru = function () { S_().chat = []; simpan(); kabari(); };
+  /** Kirim ulang pertanyaan dari pesan gagal ke-i (pesan gagal & pertanyaannya diganti yang baru). */
+  C.ulangi = function (i) {
+    const c = chat(), m = c[i];
+    if (!m || !m.gagal || C.menunggu) return;
+    const teks = m.ulang || (c[i - 1] && c[i - 1].peran === 'user' ? c[i - 1].teks : '');
+    if (!teks) return;
+    const awal = c[i - 1] && c[i - 1].peran === 'user' ? i - 1 : i;
+    c.splice(awal, i - awal + 1);
+    C.kirim(teks, m.gbr || null);
+  };
 
   /** Markdown ringan → HTML aman (teks di-escape dulu). */
   function md(s) {
@@ -89,6 +100,8 @@
     }
     return '<div class="msg ai' + (m.gagal ? ' gagal' : '') + '"><span class="av">' + ic('sparkles', 'sm') + '</span><div class="bub">' + md(m.teks) + kartuUsulan(m, i) +
       (m.catatanUsulan ? '<div class="meta">' + e(m.catatanUsulan) + '</div>' : '') +
+      (m.gagal && m.ulang ? '<button class="us-btn pri ulang" data-ulang="' + i + '">' + ic('refresh', 'sm') + 'Coba lagi</button>' : '') +
+      (m.cadangan ? '<div class="meta">' + ic('info', 'sm') + 'Model utama sedang sibuk, dijawab oleh ' + e(m.cadangan) + '</div>' : '') +
       (m.dibaca ? '<div class="meta">' + ic('info', 'sm') + 'Membaca ' + m.dibaca.transaksi + ' transaksi ' + e(m.dibaca.periode) + (m.dibaca.pengetahuan && m.dibaca.pengetahuan.length ? ' · ' + m.dibaca.pengetahuan.length + ' catatan' : '') + '</div>' : '') +
       '</div></div>';
   }
@@ -96,6 +109,7 @@
 
   /** Pasang tombol Terapkan / Tolak pada usulan anggaran di dalam `root`. */
   function bindUsulan(root) {
+    U.$$('[data-ulang]', root).forEach(function (x) { x.onclick = function () { C.ulangi(Number(x.dataset.ulang)); }; });
     U.$$('[data-tolak]', root).forEach(function (x) { x.onclick = function () { chat()[Number(x.dataset.tolak)].status = 'ditolak'; simpan(); kabari(); }; });
     U.$$('[data-terapkan]', root).forEach(function (x) {
       x.onclick = async function () {

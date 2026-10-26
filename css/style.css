@@ -890,3 +890,9 @@ html.hal-konsultan .fab { display: none; }
 
 /* cincin progres tidak boleh menyusut di dalam baris flex (perbaikan kartu Target di HP) */
 .row > .ring, .ring { flex: none; min-width: auto; }
+
+/* v1.4.1 — tombol "Coba lagi" pada pesan AI yang gagal */
+.msg.ai .us-btn.ulang{display:inline-flex;align-items:center;gap:6px;margin-top:8px}
+.lab-merek{white-space:nowrap;min-width:0}
+.lab-merek small{overflow:hidden;text-overflow:ellipsis}
+@media (max-width:480px){.lab-merek small{display:none}}
