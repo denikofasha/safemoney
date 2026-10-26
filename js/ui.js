@@ -241,7 +241,7 @@
   UI.trxIcon = function (t) {
     if (t.jenis === 'Pemasukan') return { ik: t.dompet === 'Terop' ? 'tent' : t.dompet === 'Pondok' ? 'landmark' : 'banknote', tone: 't-em' };
     if (t.refTipe === 'hutang') return { ik: 'handCoins', tone: 't-coral' };
-    if (t.dompet === 'Pribadi') return { ik: U.POS_IKON[t.kategori] || 'list', tone: t.kategori === 'Tabungan' ? 't-gold' : 't-coral' };
+    if (t.dompet === 'Pribadi') return { ik: U.POS_IKON[t.kategori] || 'list', tone: t.kategori === 'Tabungan' ? 't-gold' : t.kategori === 'Sedekah' ? 't-violet' : 't-coral' };
     return { ik: t.dompet === 'Terop' ? 'truck' : 'package', tone: 't-coral' };
   };
 

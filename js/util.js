@@ -8,19 +8,24 @@
   const BULAN_M = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
   const BULAN_M_PANJANG = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
   U.BULAN_H = BULAN_H;
-  U.POS = ['Kebutuhan Primer', 'Investasi Otak/Tubuh', 'Jajanan', 'Tabungan'];
-  U.POS_SINGKAT = { 'Kebutuhan Primer': 'Primer', 'Investasi Otak/Tubuh': 'Investasi', 'Jajanan': 'Jajanan', 'Tabungan': 'Tabungan' };
-  U.POS_IKON = { 'Kebutuhan Primer': 'shirt', 'Investasi Otak/Tubuh': 'book', 'Jajanan': 'coffee', 'Tabungan': 'piggy' };
+  U.POS = ['Kebutuhan Primer', 'Investasi Otak/Tubuh', 'Jajanan', 'Sedekah', 'Tabungan'];
+  U.POS_SIMPAN = ['Tabungan', 'Sedekah']; // pos kebaikan: tanpa peringatan "melebihi"
+  U.POS_WARNA = { 'Kebutuhan Primer': '#003D79', 'Investasi Otak/Tubuh': '#10B981', 'Jajanan': '#F26B5B', 'Sedekah': '#8B5CF6', 'Tabungan': '#FFB700' };
+  U.POS_TILE = { 'Kebutuhan Primer': 't-navy', 'Investasi Otak/Tubuh': 't-em', 'Jajanan': 't-coral', 'Sedekah': 't-violet', 'Tabungan': 't-gold' };
+  U.POS_SINGKAT = { 'Kebutuhan Primer': 'Primer', 'Investasi Otak/Tubuh': 'Investasi', 'Jajanan': 'Jajanan', 'Sedekah': 'Sedekah', 'Tabungan': 'Tabungan' };
+  U.POS_IKON = { 'Kebutuhan Primer': 'shirt', 'Investasi Otak/Tubuh': 'book', 'Jajanan': 'coffee', 'Sedekah': 'heart', 'Tabungan': 'piggy' };
   U.POS_INFO = {
     'Kebutuhan Primer': 'Laundry, paket data, iuran',
     'Investasi Otak/Tubuh': 'Kelas, e-book, suplemen',
     'Jajanan': 'Kopi, camilan, jajan',
+    'Sedekah': 'Traktir teman, wakaf, infak',
     'Tabungan': 'Target & dana darurat'
   };
   U.SUBKAT = {
     'Kebutuhan Primer': ['Laundry', 'Paket Data', 'Iuran Subuh Berkah', 'Sabun & Mandi', 'Transportasi'],
     'Investasi Otak/Tubuh': ['Kelas Online', 'E-book / Buku', 'Suplemen Olahraga', 'Telur'],
     'Jajanan': ['Kopi & Snack', 'Gorengan', 'Makan Luar', 'Air Minum'],
+    'Sedekah': ['Traktir Teman', 'Wakaf Pondok', 'Infak Masjid', 'Bantu Sesama', 'Sedekah Subuh'],
     'Tabungan': ['Setoran Tabungan', 'Dana Darurat']
   };
   U.DOMPET_LABEL = { Pribadi: 'Pribadi', Pondok: 'Dana Pondok', Terop: 'Dana Terop' };

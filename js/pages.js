@@ -99,12 +99,12 @@
         '<div class="pos-grid">' + b.anggaran.map(function (a) {
           const si = UI.statusInfo(a.status);
           const kls = a.status === 'Hampir penuh' || a.status === 'Penuh' ? 'glow' : a.status === 'Melebihi batas' ? 'danger' : '';
-          const tab = a.kategori === 'Tabungan';
-          const col2 = tab ? '#FFD15C' : a.status === 'Aman' ? '#34d399' : a.status === 'Melebihi batas' ? '#f58a7d' : '#FFD15C';
+          const tab = a.kategori === 'Tabungan', sdk = a.kategori === 'Sedekah';
+          const col2 = tab ? '#FFD15C' : sdk ? '#C4B5FD' : a.status === 'Aman' ? '#34d399' : a.status === 'Melebihi batas' ? '#f58a7d' : '#FFD15C';
           return '<div class="pos ' + kls + '" data-tip="' + e(a.kategori + ' · ' + a.persen + '% dari pemasukan\nBatas ' + U.rp(a.batas) + '\nSisa ' + U.rp(a.sisa)) + '">' +
-            UI.ring(a.pct, { size: 84, stroke: 9, color: tab ? '#FFB700' : si.color, color2: col2 }) +
+            UI.ring(a.pct, { size: 84, stroke: 9, color: tab ? '#FFB700' : sdk ? '#8B5CF6' : si.color, color2: col2 }) +
             '<h4><span class="hide-m">' + e(a.kategori) + '</span><span class="show-m">' + e(U.POS_SINGKAT[a.kategori]) + '</span></h4><div class="amt num"><span class="hide-m">' + U.rp(a.terpakai) + ' / ' + U.rp(a.batas) + '</span><span class="show-m">' + U.rpShort(a.terpakai) + ' / ' + U.rpShort(a.batas) + '</span></div>' + UI.pill(a.status, a.status === 'Berjalan' ? Math.round(a.pct) + '% terisi' : null) + '</div>';
-        }).join('') + '</div>' + (b.evaluasiLalu && b.evaluasiLalu.usulan && !b.evaluasiLalu.diterapkan && App.isCurrentPeriod()
+        }).join('') + '</div>' + kartuSedekah(b) + (b.evaluasiLalu && b.evaluasiLalu.usulan && !b.evaluasiLalu.diterapkan && App.isCurrentPeriod()
           ? '<div class="note warn" style="margin-top:16px">' + ic('history') + '<div style="flex:1"><b>Evaluasi bulan lalu:</b> ' + e(b.evaluasiLalu.pos.map(function (x) { return x.kategori + ' ' + Math.round(x.pct) + '%'; }).join(', ')) +
             ' melebihi batas di ' + e(b.evaluasiLalu.periode) + '. Ada saran persentase untuk bulan ini.</div><button class="btn btn-sm btn-gold" data-act="evaluasi">Lihat saran</button></div>' : '') + '</div>' +
 
@@ -286,12 +286,12 @@
         '<div class="grid g-12" style="align-items:start">' +
         '<div class="card span-7"><div class="card-head">' + ic('filter') + '<h3>Atur Persentase</h3><span class="small muted" style="margin-left:auto">Basis: <b class="num" style="color:var(--ink)">' + U.rp(r.basis) + '</b></span></div>' +
         U.POS.map(function (k) {
-          return '<div class="set-row" style="align-items:flex-start"><span class="ic-tile ' + (k === 'Tabungan' ? 't-gold' : k === 'Jajanan' ? 't-coral' : 't-navy') + '">' + ic(U.POS_IKON[k]) + '</span><div style="flex:1;min-width:0">' +
+          return '<div class="set-row" style="align-items:flex-start"><span class="ic-tile ' + U.POS_TILE[k] + '">' + ic(U.POS_IKON[k]) + '</span><div style="flex:1;min-width:0">' +
             '<div class="row"><b>' + k + '</b><span class="small muted hide-m">' + U.POS_INFO[k] + '</span><span class="num strong" style="margin-left:auto" data-nom="' + k + '"></span></div>' +
             '<div class="row" style="margin-top:6px"><input type="range" class="range" min="0" max="100" step="1" value="' + S.ang[k] + '" data-sl="' + k + '" aria-label="Persen ' + k + '">' +
             '<div class="input-pre" style="width:92px;flex:none"><input class="input num" style="height:40px;padding:0 30px 0 12px;text-align:right" inputmode="numeric" value="' + S.ang[k] + '" data-pc="' + k + '"><span style="left:auto;right:12px">%</span></div></div></div></div>';
         }).join('') +
-        '<div class="note" id="totalNote" style="margin-top:12px"></div>' +
+        '<div class="note" id="totalNote" style="margin-top:12px"></div>' + kartuSedekah(b, true) +
         '<div class="row wrap" style="margin-top:14px;gap:16px"><span class="small strong">Berlaku mulai:</span>' +
         '<label class="row small"><input type="radio" name="mulai" value="ini" checked> Periode ini</label><label class="row small"><input type="radio" name="mulai" value="berikutnya"> Periode berikutnya</label></div>' +
         '<div class="row btn-row" style="margin-top:16px;justify-content:flex-end;gap:10px"><button class="btn btn-sec" id="angReset">' + ic('refresh', 'sm') + 'Batalkan perubahan</button><button class="btn btn-gold" id="angSave">' + ic('save') + 'Simpan Anggaran</button></div></div>' +
@@ -323,9 +323,11 @@
           U.$('[data-nom="' + k + '"]', root).textContent = '= ' + U.rp(b.ringkasan.basis * S.ang[k] / 100);
         });
         const n = U.$('#totalNote', root);
-        n.className = 'note ' + (total === 100 ? 'ok' : 'danger');
-        n.innerHTML = ic(total === 100 ? 'checkCircle' : 'alertCircle') + '<div style="flex:1"><b>Total: ' + total + '%</b>' + (total === 100 ? ' — siap disimpan.' : ' — total harus tepat 100% (' + (total > 100 ? 'kurangi ' + (total - 100) : 'tambah ' + (100 - total)) + '%).') + '</div>' + UI.bar(Math.min(total, 100), total === 100 ? 'em' : 'coral').replace('class="bar', 'style="width:120px" class="hide-m bar');
-        U.$('#angSave', root).disabled = total !== 100;
+        const minS = Number(b.pengaturan.min_sedekah || 0), kurangS = S.ang.Sedekah < minS;
+        const siap = total === 100 && !kurangS;
+        n.className = 'note ' + (siap ? 'ok' : 'danger');
+        n.innerHTML = ic(siap ? 'checkCircle' : 'alertCircle') + '<div style="flex:1"><b>Total: ' + total + '%</b>' + (total === 100 ? (kurangS ? ' — tetapi Sedekah minimal ' + minS + '%.' : ' — siap disimpan.') : ' — total harus tepat 100% (' + (total > 100 ? 'kurangi ' + (total - 100) : 'tambah ' + (100 - total)) + '%).') + '</div>' + UI.bar(Math.min(total, 100), siap ? 'em' : 'coral').replace('class="bar', 'style="width:120px" class="hide-m bar');
+        U.$('#angSave', root).disabled = !siap;
         U.$('#simBody', root).innerHTML = U.POS.map(function (k) {
           return '<tr><td>' + U.POS_SINGKAT[k] + ' <span class="muted small">' + S.ang[k] + '%</span></td><td class="r num">' + U.rp(b.ringkasan.ihsanBulanan * S.ang[k] / 100) + '</td><td class="r num">' + U.rp(b.ringkasan.pemasukan * S.ang[k] / 100) + '</td></tr>';
         }).join('');
@@ -410,7 +412,7 @@
         }
         const tabs = [['kelompok', L.ik, L.tab], ['riwayat', 'list', 'Riwayat'], ['galeri', 'image', 'Galeri Bukti']].concat(isP ? [['kategori', 'package', 'Kategori']] : []);
         return pastNote(S) + '<div class="page-head"><div><span class="eyebrow">' + (isP ? 'Kas amanah pondok' : 'Kas sewa terop') + '</span><h1>' + (isP ? 'Dana Anggaran Pondok' : 'Dana Terop') + '</h1>' +
-          '<p>Terpisah dari uang pribadi — tidak memengaruhi anggaran 4 pos.</p></div><div class="actions">' +
+          '<p>Terpisah dari uang pribadi — tidak memengaruhi anggaran 5 pos.</p></div><div class="actions">' +
           '<button class="btn btn-sec" data-act="pdf">' + ic('download') + 'Unduh PDF</button><button class="btn btn-gold" data-act="catat-w">' + ic('plus') + (isP ? 'Catat Dana Pondok' : 'Catat Dana Terop') + '</button></div></div>' +
           '<div class="grid g-4 stagger">' +
           stat('Saldo', U.rp(b.saldo[dompet]), 'wallet', tone, pinjKeluar ? 'Dipinjam ' + U.rp(pinjKeluar) : 'Seluruh periode') +
@@ -639,14 +641,14 @@
   function renderLaporan(L) {
     const CW = lebarChart();
     const r = L.ringkasan, warna = ['#003D79', '#FFB700', '#10B981', '#F26B5B', '#5B8DEF', '#9B6BDF', '#8A5A00'];
-    const posWarna = { 'Kebutuhan Primer': '#003D79', 'Investasi Otak/Tubuh': '#10B981', 'Jajanan': '#F26B5B', 'Tabungan': '#FFB700' };
+    const posWarna = U.POS_WARNA;
     const komp = L.komposisi.map(function (k, i) { return { label: k.nama, value: k.nilai, color: posWarna[k.nama] || warna[i % warna.length] }; });
     const tiles = '<div class="grid g-4 stagger">' + stat('Saldo awal', U.rp(r.saldoAwal), 'wallet', 't-navy', 'Awal periode') + stat('Pemasukan', U.rp(r.pemasukan), 'arrowDown', 't-em', r.jumlahTransaksi + ' transaksi', 'in') +
       stat('Pengeluaran', U.rp(r.pengeluaran), 'arrowUp', 't-coral', L.dompet !== 'Pribadi' && r.tanpaNota ? r.tanpaNota + ' tanpa nota' : 'Periode ini', 'out') + stat('Saldo akhir', U.rp(r.saldoAkhir), 'landmark', 't-gold', 'Akhir periode') + '</div>';
     const donut = '<div class="card"><div class="card-head">' + ic('pie') + '<h3>' + (L.dompet === 'Pribadi' ? 'Komposisi Pengeluaran per Pos' : L.dompet === 'Terop' ? 'Pengeluaran per Kepanitiaan' : 'Pengeluaran per Kategori') + '</h3></div>' +
       (komp.some(function (k) { return k.value > 0; }) ? UI.donut(komp, { title: 'TERPAKAI' }) : UI.empty('pie', 'Belum ada pengeluaran', 'Grafik muncul setelah ada pengeluaran.')) + '</div>';
     const hb = L.dompet === 'Pribadi' ? '<div class="card"><div class="card-head">' + ic('filter') + '<h3>Pemakaian vs Batas</h3><span class="small muted" style="margin-left:auto">garis putus = batas</span></div>' +
-      UI.hbars(L.komposisi.map(function (k) { return { label: U.POS_SINGKAT[k.nama], value: k.nilai, max: k.batas, color: k.nama === 'Tabungan' ? '#FFB700' : UI.statusInfo(k.status).color }; }), { w: CW.half }) + '</div>'
+      UI.hbars(L.komposisi.map(function (k) { return { label: U.POS_SINGKAT[k.nama], value: k.nilai, max: k.batas, color: U.POS_SIMPAN.indexOf(k.nama) >= 0 ? U.POS_WARNA[k.nama] : UI.statusInfo(k.status).color }; }), { w: CW.half }) + '</div>'
       : '<div class="card"><div class="card-head">' + ic('list') + '<h3>' + (L.dompet === 'Terop' ? 'Ringkasan Kepanitiaan' : 'Ringkasan Kategori') + '</h3></div>' + (L.komposisi.length ? UI.hbars(L.komposisi.map(function (k, i) { return { label: k.nama.slice(0, CW.half < 420 ? 10 : 16), value: k.nilai, color: warna[i % warna.length] }; }), { w: CW.half }) : UI.empty('list', 'Belum ada data', '')) + '</div>';
     const labels = L.tren.map(function (t) { return t.label; });
     const tren = '<div class="card" style="margin-top:22px"><div class="card-head">' + ic('chart') + '<h3>Pemasukan vs Pengeluaran</h3><span class="small muted" style="margin-left:auto">' + L.tren.length + ' bulan Hijriah terakhir</span></div>' +
@@ -668,11 +670,22 @@
   // ============================================================
   // PENGATURAN
   // ============================================================
+  /** Kartu target minimal sedekah (beranda & anggaran). */
+  function kartuSedekah(b, ringkas) {
+    const sd = b.ringkasan && b.ringkasan.sedekah;
+    if (!sd || !sd.minPersen) return '';
+    const pct = sd.minimal ? Math.min(100, Math.round(sd.terpakai / sd.minimal * 100)) : 100;
+    return '<div class="sedekah-bar' + (ringkas ? ' ringkas' : '') + '">' + '<span class="ic-tile t-violet">' + ic('heart') + '</span>' +
+      '<div style="flex:1;min-width:0"><div class="row wrap" style="gap:6px 10px"><b>Sedekah minimal ' + sd.minPersen + '% dari ihsan</b>' +
+      '<span class="pill ' + (sd.tercapai ? 'p-aman' : 'p-violet') + '" style="margin-left:auto">' + (sd.tercapai ? ic('checkCircle', 'sm') + 'Tercapai' : 'Kurang ' + U.rp(sd.kurang)) + '</span></div>' +
+      '<div class="small muted num" style="margin:4px 0 8px">' + U.rp(sd.terpakai) + ' dari minimal ' + U.rp(sd.minimal) + (sd.dasar ? ' (ihsan ' + U.rp(sd.dasar) + ')' : '') + '</div>' + UI.bar(pct, 'violet') + '</div></div>';
+  }
+
   Pages.pengaturan = {
     title: 'Pengaturan',
     render: function (S) {
       const tab = S.setTab || 'umum';
-      const menu = [['umum', 'user', 'Umum'], ['keamanan', 'shield', 'Keamanan'], ['kutipan', 'quote', 'Kata Mutiara'], ['kalender', 'calendar', 'Kalender Hijriah'], ['notifikasi', 'bell', 'Notifikasi'], ['kategori', 'package', 'Kategori Dompet'], ['tentang', 'info', 'Tentang']];
+      const menu = [['umum', 'user', 'Umum'], ['keamanan', 'shield', 'Keamanan'], ['kutipan', 'quote', 'Kata Mutiara'], ['kalender', 'calendar', 'Kalender Hijriah'], ['notifikasi', 'bell', 'Notifikasi'], ['kategori', 'package', 'Kategori Dompet'], ['ai', 'sparkles', 'AI & Jarvis'], ['tentang', 'info', 'Tentang']];
       return '<div class="page-head"><div><h1>Pengaturan</h1><p>Atur profil, keamanan PIN, kata mutiara, kalender Hijriah, dan notifikasi.</p></div></div>' +
         '<div class="set-layout"><div class="card set-menu">' + menu.map(function (m) { return '<button class="' + (tab === m[0] ? 'on' : '') + '" data-st="' + m[0] + '">' + ic(m[1]) + m[2] + '</button>'; }).join('') + '</div>' +
         '<div id="setBody">' + setBody(tab, S) + '</div></div>';
@@ -692,6 +705,8 @@
         '<button class="choice ' + (p.basis_anggaran !== 'PASTI' ? 'on' : '') + '" data-basis="REALISASI"><b>Pemasukan yang sudah masuk</b><small>Batas ikut bertambah saat kiriman orang tua masuk</small><span class="chk">' + ic('checkCircle') + '</span></button>' +
         '<button class="choice ' + (p.basis_anggaran === 'PASTI' ? 'on' : '') + '" data-basis="PASTI"><b>Uang ihsan saja</b><small>Lebih hemat; kiriman tak pasti tidak menambah batas</small><span class="chk">' + ic('checkCircle') + '</span></button></div></div>' +
         '<div class="field"><label class="label">Ambang peringatan "hampir penuh" <span class="hint" id="ambLbl">' + p.ambang_peringatan + '%</span></label><input type="range" class="range" id="sAmbang" min="50" max="99" value="' + p.ambang_peringatan + '"></div>' +
+        '<div class="field"><label class="label">' + ic('heart', 'sm') + ' Minimal sedekah per bulan <span class="hint">% dari ihsan; pos Sedekah tidak boleh di bawah ini</span></label><div class="input-pre" style="max-width:160px"><input class="input num" id="sMinSed" inputmode="numeric" style="padding:0 34px 0 14px;text-align:right" value="' + e(p.min_sedekah || '5') + '"><span style="left:auto;right:14px">%</span></div>' +
+        '<div class="small muted" style="margin-top:6px" id="sMinSedInfo"></div></div>' +
         '<div class="row" style="justify-content:flex-end;margin-top:18px"><button class="btn btn-gold" id="sSimpan">' + ic('save') + 'Simpan</button></div></div>';
     }
     if (tab === 'keamanan') {
@@ -744,7 +759,22 @@
           ks.map(function (k) { return '<button class="chip ' + (k.aktif ? '' : 'muted') + '" data-kat="' + k.id + '" style="' + (k.aktif ? '' : 'opacity:.55;text-decoration:line-through') + '">' + e(k.nama) + ic('edit', 'sm') + '</button>'; }).join('') + '</div></div>';
       }).join('');
     }
-    return '<div class="card"><div class="center" style="padding:10px 0 16px"><img src="assets/logo-mark.png" alt="" style="width:84px;margin:0 auto 10px"><h2 style="margin:0">Safe<span style="color:var(--amber-ink)">Money</span></h2><div class="muted small">Versi 1.1.1 · Frontend GitHub Pages + Google Apps Script</div></div>' +
+    if (tab === 'ai') {
+      const ai = S.boot.ai || { adaKunci: false, model: '', agen: { aktif: false } };
+      const tgl = function (s) { return s ? new Date(String(s).replace(' ', 'T') + '+07:00').toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' }) : '-'; };
+      return '<div class="card"><div class="card-head"><span class="ic-tile t-violet">' + ic('camera') + '</span><div><h3>Baca Nota Otomatis (Gemini)</h3><div class="small muted">Foto nota dikirim ke Google Gemini untuk dibaca. Butuh internet.</div></div>' +
+        '<span class="pill ' + (ai.adaKunci ? 'p-aman' : 'p-mute') + '" style="margin-left:auto">' + (ai.adaKunci ? 'Aktif' : 'Belum aktif') + '</span></div>' +
+        '<div class="field"><label class="label">API key Gemini <span class="hint">dari Google AI Studio · disimpan aman di server, tidak bisa dilihat lagi</span></label>' +
+        '<div class="row"><input class="input" id="aiKey" type="password" autocomplete="off" placeholder="' + (ai.adaKunci ? '•••••••• (tersimpan) — isi untuk mengganti' : 'Tempel API key di sini') + '"><button class="btn btn-gold" id="aiSimpan">' + ic('save') + 'Simpan &amp; tes</button></div></div>' +
+        '<div class="field"><label class="label">Model <span class="hint">ganti bila Google merilis model baru</span></label><div class="row"><input class="input" id="aiModel" value="' + e(ai.model || 'gemini-3.5-flash-lite') + '"><button class="btn btn-sec" id="aiModelSimpan">Simpan model</button></div></div>' +
+        (ai.adaKunci ? '<div class="row" style="justify-content:flex-end;margin-top:12px"><button class="btn btn-sm btn-danger-out" id="aiHapus">' + ic('trash', 'sm') + 'Hapus API key</button></div>' : '') + '</div>' +
+        '<div class="card" style="margin-top:22px"><div class="card-head"><span class="ic-tile t-navy">' + ic('send') + '</span><div><h3>Jarvis (Telegram)</h3><div class="small muted">Jarvis boleh membaca ringkasan &amp; mencatat transaksi. Tidak bisa menghapus, mengubah anggaran, atau pengaturan.</div></div>' +
+        '<span class="pill ' + (ai.agen.aktif ? 'p-aman' : 'p-mute') + '" style="margin-left:auto">' + (ai.agen.aktif ? 'Tersambung' : 'Belum') + '</span></div>' +
+        (ai.agen.aktif ? '<div class="set-row"><div class="txt"><b>Kunci dibuat</b><small>' + tgl(ai.agen.dibuat) + ' · terakhir dipakai ' + tgl(ai.agen.terakhir) + '</small></div></div>' : '') +
+        '<div class="row btn-row" style="justify-content:flex-end;gap:10px;margin-top:14px">' + (ai.agen.aktif ? '<button class="btn btn-danger-out" id="agCabut">' + ic('xCircle', 'sm') + 'Cabut kunci</button>' : '') +
+        '<button class="btn btn-navy" id="agBuat">' + ic('key') + (ai.agen.aktif ? 'Buat kunci baru' : 'Buat kunci Jarvis') + '</button></div></div>';
+    }
+    return '<div class="card"><div class="center" style="padding:10px 0 16px"><img src="assets/logo-mark.png" alt="" style="width:84px;margin:0 auto 10px"><h2 style="margin:0">Safe<span style="color:var(--amber-ink)">Money</span></h2><div class="muted small">Versi 1.2.0 · Frontend GitHub Pages + Google Apps Script</div></div>' +
       '<div class="set-row"><div class="txt"><b>Data tersimpan di</b><small>Google Sheets "SafeMoney_DB" & folder Drive "SafeMoney" milik Anda</small></div></div>' +
       '<div class="set-row"><div class="txt"><b>Lupa PIN?</b><small>Jalankan fungsi resetPin() di editor Apps Script, lalu buat PIN baru di aplikasi.</small></div></div>' +
       '<div class="set-row"><div class="txt"><b>Muat ulang data</b><small>Ambil data terbaru dari server</small></div><button class="btn btn-sm btn-sec" id="reload">' + ic('refresh', 'sm') + 'Muat ulang</button></div>' +
@@ -755,10 +785,13 @@
       let basis = S.boot.pengaturan.basis_anggaran;
       U.$$('[data-basis]', root).forEach(function (b) { b.onclick = function () { basis = b.dataset.basis; U.$$('[data-basis]', root).forEach(function (x) { x.classList.toggle('on', x === b); }); }; });
       const ih = U.$('#sIhsan', root); ih.oninput = function () { ih.value = U.fmtInput(ih.value); };
+      const ms = U.$('#sMinSed', root), msi = U.$('#sMinSedInfo', root);
+      const infoMs = function () { const v = U.parseNum(ms.value); msi.textContent = 'Ihsan ' + U.rp(U.parseNum(ih.value)) + ' → minimal sedekah ' + U.rp(U.parseNum(ih.value) * v / 100) + ' per bulan.'; };
+      ms.oninput = function () { ms.value = String(Math.min(50, U.parseNum(ms.value))); infoMs(); }; ih.addEventListener('input', infoMs); infoMs();
       const am = U.$('#sAmbang', root); UI.rangeFill(am); am.oninput = function () { UI.rangeFill(am); U.$('#ambLbl', root).textContent = am.value + '%'; };
       U.$('#sSimpan', root).onclick = async function () {
         UI.busy(this, true);
-        try { await API.call('simpanPengaturan', { nama_pemilik: U.$('#sNama', root).value, ihsan_bulanan: U.parseNum(ih.value), basis_anggaran: basis, ambang_peringatan: am.value }); UI.toast('Pengaturan tersimpan.'); await App.refresh(true); }
+        try { await API.call('simpanPengaturan', { nama_pemilik: U.$('#sNama', root).value, ihsan_bulanan: U.parseNum(ih.value), basis_anggaran: basis, ambang_peringatan: am.value, min_sedekah: U.parseNum(U.$('#sMinSed', root).value) }); UI.toast('Pengaturan tersimpan.'); await App.refresh(true); }
         catch (err) { UI.toast(err.message, 'error'); UI.busy(this, false); }
       };
     } else if (tab === 'keamanan') {
@@ -787,6 +820,35 @@
           catch (err) { cb.checked = !cb.checked; UI.toast(err.message, 'error'); }
         };
       });
+    } else if (tab === 'ai') {
+      const simpan = async function (btn, data, pesan) {
+        UI.busy(btn, true, 'Memproses…');
+        try { await API.call(data.__aksi, data.d, { timeout: 60000 }); UI.toast(pesan); await App.refresh(true); }
+        catch (err) { UI.toast(err.message, 'error'); UI.busy(btn, false); }
+      };
+      U.$('#aiSimpan', root).onclick = function () {
+        const k = U.$('#aiKey', root).value.trim();
+        if (!k) return UI.toast('Tempel API key dulu.', 'error');
+        simpan(this, { __aksi: 'simpanKunciAI', d: { apiKey: k } }, 'API key tersimpan & berhasil dites. Baca nota aktif.');
+      };
+      U.$('#aiModelSimpan', root).onclick = function () { simpan(this, { __aksi: 'simpanPengaturan', d: { gemini_model: U.$('#aiModel', root).value.trim() } }, 'Model disimpan.'); };
+      const hp = U.$('#aiHapus', root);
+      if (hp) hp.onclick = async function () {
+        if (!(await UI.confirm({ title: 'Hapus API key?', text: 'Fitur baca nota akan nonaktif sampai key diisi lagi.', ok: 'Hapus' }))) return;
+        simpan(hp, { __aksi: 'simpanKunciAI', d: { hapus: true } }, 'API key dihapus.');
+      };
+      U.$('#agBuat', root).onclick = async function () {
+        const ada = S.boot.ai && S.boot.ai.agen.aktif;
+        if (ada && !(await UI.confirm({ title: 'Buat kunci baru?', text: 'Kunci lama langsung tidak berlaku. Anda perlu mengganti SAFEMONEY_KEY di .env Hermes.', ok: 'Buat baru', icon: 'key', tone: 't-navy', btn: 'btn-navy' }))) return;
+        const btn = this; UI.busy(btn, true, 'Membuat…');
+        try { const r = await API.call('buatKunciAgen', {}); await App.refresh(true); Forms.kunciJarvis(r.kunci); }
+        catch (err) { UI.toast(err.message, 'error'); UI.busy(btn, false); }
+      };
+      const cb = U.$('#agCabut', root);
+      if (cb) cb.onclick = async function () {
+        if (!(await UI.confirm({ title: 'Cabut kunci Jarvis?', text: 'Jarvis tidak bisa lagi membaca atau mencatat sampai dibuat kunci baru.', ok: 'Cabut' }))) return;
+        simpan(cb, { __aksi: 'cabutKunciAgen', d: {} }, 'Kunci Jarvis dicabut.');
+      };
     } else if (tab === 'kalender') {
       U.$$('[data-geser]', root).forEach(function (b) {
         b.onclick = async function () {

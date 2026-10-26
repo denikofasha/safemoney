@@ -158,7 +158,7 @@
     const m = UI.modal({
       title: 'Menu Lainnya', icon: 'grid',
       body: '<div class="choice-grid c2">' +
-        item('anggaran', 'pie', 'Anggaran', 't-navy', 'Atur persen 4 pos') +
+        item('anggaran', 'pie', 'Anggaran', 't-navy', 'Atur persen 5 pos') +
         item('pondok', 'building', 'Dana Pondok', 't-em', b.belumNota.length ? b.belumNota.length + ' belum ada nota' : 'Kas amanah') +
         item('terop', 'tent', 'Dana Terop', 't-gold', 'Kas sewa terop') +
         item('pinjaman', 'swap', 'Pinjaman & Hutang', 't-coral', 'Kewajiban berjalan') +
@@ -253,9 +253,10 @@
     a.terpakai += n; a.sisa = a.batas - a.terpakai;
     a.pct = a.batas > 0 ? Math.round(a.terpakai / a.batas * 1000) / 10 : (a.terpakai > 0 ? 999 : 0);
     const amb = b.ringkasan.ambang || 80;
-    a.status = a.kategori === 'Tabungan' ? (a.pct >= 100 ? 'Tercapai' : 'Berjalan') : a.pct > 100 ? 'Melebihi batas' : a.pct >= 100 ? 'Penuh' : a.pct >= amb ? 'Hampir penuh' : 'Aman';
+    a.status = U.POS_SIMPAN.indexOf(a.kategori) >= 0 ? (a.pct >= 100 ? 'Tercapai' : 'Berjalan') : a.pct > 100 ? 'Melebihi batas' : a.pct >= 100 ? 'Penuh' : a.pct >= amb ? 'Hampir penuh' : 'Aman';
     if (t.kategori === 'Tabungan') b.ringkasan.setorTabungan += n; else b.ringkasan.pengeluaran += n;
-    b.ringkasan.sisaBoleh = b.anggaran.filter(function (x) { return x.kategori !== 'Tabungan'; }).reduce(function (s, x) { return s + Math.max(0, x.sisa); }, 0);
+    if (a.kategori === 'Sedekah' && b.ringkasan.sedekah) { const sd = b.ringkasan.sedekah; sd.terpakai = a.terpakai; sd.kurang = Math.max(0, sd.minimal - a.terpakai); sd.tercapai = a.terpakai >= sd.minimal; }
+    b.ringkasan.sisaBoleh = b.anggaran.filter(function (x) { return U.POS_SIMPAN.indexOf(x.kategori) < 0; }).reduce(function (s, x) { return s + Math.max(0, x.sisa); }, 0);
   }
 
   function tampilPeringatan(p) {

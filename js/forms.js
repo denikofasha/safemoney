@@ -34,9 +34,19 @@
       '<label class="dropzone" id="' + id + 'Z">' + ic('camera') + '<span id="' + id + 'T">Ambil foto atau pilih berkas</span>' +
       '<input type="file" id="' + id + '" accept="image/*,application/pdf" capture="environment" hidden></label></div>';
   }
+  function scanBox() {
+    return '<label class="scan-ai" id="tScan">' + '<span class="ic-tile t-violet">' + ic('sparkles') + '</span><div style="flex:1;min-width:0"><b>Baca foto nota otomatis</b><small>AI mengisi nominal, tanggal, keterangan &amp; pos. Butuh internet.</small></div>' +
+      ic('camera') + '<input type="file" id="tScanF" accept="image/*" hidden></label><div id="tScanInfo"></div>';
+  }
   function bindBukti(m, id) {
     const holder = { val: null };
     const inp = m.$('#' + id);
+    holder.set = function (val, nama) {
+      holder.val = val;
+      const z = m.$('#' + id + 'Z'); z.classList.add('has');
+      z.innerHTML = (val.preview ? '<img src="' + val.preview + '" alt="">' : ic('file')) + '<span>' + e(nama || 'Foto nota') + ' · ' + Math.round(val.data.length * 0.75 / 1024) + ' KB</span>';
+      z.appendChild(inp);
+    };
     inp.addEventListener('change', async function () {
       const f = inp.files && inp.files[0]; if (!f) return;
       m.$('#' + id + 'T').textContent = 'Memproses…';
@@ -68,7 +78,7 @@
     const m = UI.modal({
       title: isEdit ? 'Ubah Transaksi' : 'Catat Transaksi', icon: isEdit ? 'edit' : 'plus', tone: 't-navy',
       sub: isEdit ? e(st.id) : 'Cepat, kurang dari 15 detik',
-      body: '<div class="seg" id="tJenis">' +
+      body: (isEdit ? '' : scanBox()) + '<div class="seg" id="tJenis">' +
         '<button data-j="Pengeluaran" class="' + (st.jenis === 'Pengeluaran' ? 'on out-on' : '') + '">' + ic('arrowUp', 'sm') + 'Pengeluaran</button>' +
         '<button data-j="Pemasukan" class="' + (st.jenis === 'Pemasukan' ? 'on in-on' : '') + '">' + ic('arrowDown', 'sm') + 'Pemasukan</button></div>' +
         '<div class="sect-title">Pilih dompet / kas <span id="saldoInfo"></span></div>' +
@@ -133,7 +143,7 @@
           '<button class="choice ' + (st.sumber === 'Kiriman Orang Tua' ? 'on' : '') + '" data-src="Kiriman Orang Tua"><b>Kiriman Ortu</b><small>Tidak pasti</small><span class="chk">' + ic('checkCircle', 'sm') + '</span></button>' +
           '<button class="choice ' + (lain || st.sumber === 'Lainnya' ? 'on' : '') + '" data-src="Lainnya"><b>Lainnya…</b><small>Ketik manual</small><span class="chk">' + ic('checkCircle', 'sm') + '</span></button></div>' +
           '<input class="input ' + (lain || st.sumber === 'Lainnya' ? '' : 'hidden') + '" id="tSrcIn" style="margin-top:10px" placeholder="Nama sumber, mis. Honor mengajar" value="' + e(lain ? st.sumber : '') + '">' +
-          '<div class="note ok" style="margin-top:12px">' + ic('info') + '<div>Pemasukan langsung memperbarui saldo dan batas 4 pos anggaran.</div></div>';
+          '<div class="note ok" style="margin-top:12px">' + ic('info') + '<div>Pemasukan langsung memperbarui saldo dan batas 5 pos anggaran.</div></div>';
       } else {
         h += kelompokField();
       }
@@ -181,6 +191,14 @@
       const dulu = a.pct, jadi = a.batas ? (a.terpakai + n) / a.batas * 100 : 0;
       if (sisaEl) sisaEl.innerHTML = 'Tersisa: <b class="num">' + U.rp(a.sisa) + '</b>';
       if (a.kategori === 'Tabungan') { q.innerHTML = '<div class="note ok">' + ic('piggy') + '<div>Setoran tabungan memindahkan uang ke simpanan, tidak mengurangi jatah belanja.</div></div>'; return; }
+      if (a.kategori === 'Sedekah') {
+        const sd = b.ringkasan.sedekah || { minimal: 0, terpakai: a.terpakai, minPersen: 0 };
+        const jadiS = sd.terpakai + n, kurangS = Math.max(0, sd.minimal - jadiS);
+        q.innerHTML = '<div class="note violet" style="flex-direction:column;gap:8px"><div class="row" style="width:100%">' + ic('heart') + '<b>Sedekah bulan ini</b><span class="pill p-violet" style="margin-left:auto">' + (kurangS ? 'kurang ' + U.rp(kurangS) : 'minimal tercapai') + '</span></div>' +
+          '<div style="width:100%">Tercatat ' + U.rp(sd.terpakai) + ' → menjadi <b>' + U.rp(jadiS) + '</b>. Minimal ' + sd.minPersen + '% dari ihsan = ' + U.rp(sd.minimal) + '.</div>' +
+          '<div style="width:100%">' + UI.bar(sd.minimal ? Math.min(100, jadiS / sd.minimal * 100) : 100, 'violet') + '</div></div>';
+        UI.animate(q); return;
+      }
       const lewat = jadi > 100, amb = jadi >= b.ringkasan.ambang;
       q.innerHTML = '<div class="note ' + (lewat ? 'danger' : amb ? 'warn' : 'ok') + '" style="flex-direction:column;gap:8px">' +
         '<div class="row" style="width:100%">' + ic(lewat ? 'alertCircle' : amb ? 'alert' : 'checkCircle') + '<b>Kuota ' + e(a.kategori) + '</b><span class="pill ' + (lewat ? 'p-lewat' : amb ? 'p-hampir' : 'p-aman') + '" style="margin-left:auto">' + Math.round(jadi) + '% terpakai</span></div>' +
@@ -199,12 +217,60 @@
     });
     if (terkunci) { m.$$('#tJenis button, #tDompet button').forEach(function (x) { x.disabled = true; }); }
     dyn(); label();
+    if (!isEdit) bindScan();
+
+    function bindScan() {
+      const f = m.$('#tScanF'), box = m.$('#tScan'), info = m.$('#tScanInfo');
+      f.addEventListener('change', async function () {
+        const file = f.files && f.files[0]; f.value = '';
+        if (!file) return;
+        if (!(b.ai && b.ai.adaKunci)) {
+          info.innerHTML = '<div class="note warn">' + ic('alert') + '<div>Fitur baca nota belum aktif. Isi API key Gemini di <b>Pengaturan → AI &amp; Jarvis</b>.</div></div>';
+          return;
+        }
+        box.classList.add('busy'); box.querySelector('b').textContent = 'Membaca nota…';
+        info.innerHTML = '';
+        let foto;
+        try {
+          foto = await U.bacaBukti(file);
+          if (!/^image\//.test(foto.mime)) throw new Error('Pilih foto nota (bukan PDF).');
+          const r = await API.call('bacaNota', { mime: foto.mime, data: foto.data }, { timeout: 90000 });
+          terapkanNota(r, foto, file.name);
+        } catch (err) {
+          info.innerHTML = '<div class="note danger">' + ic('alertCircle') + '<div>' + e(err.message) + '</div></div>';
+          if (foto && bukti.set && /^image\//.test(foto.mime)) bukti.set(foto, file.name);
+        } finally {
+          box.classList.remove('busy'); box.querySelector('b').textContent = 'Baca foto nota otomatis';
+        }
+      });
+    }
+    function terapkanNota(r, foto, nama) {
+      if (bukti.set) bukti.set(foto, nama);
+      const info = m.$('#tScanInfo');
+      if (!r.terbaca) {
+        info.innerHTML = '<div class="note warn">' + ic('alert') + '<div>Total di nota tidak terbaca jelas. Foto tetap dilampirkan; isi nominal secara manual.</div></div>';
+        return;
+      }
+      st.jenis = 'Pengeluaran';
+      m.$$('#tJenis button').forEach(function (x) { x.className = x.dataset.j === 'Pengeluaran' ? 'on out-on' : ''; });
+      if (r.dompet && r.dompet !== st.dompet) { st.dompet = r.dompet; st.idKelompok = ''; st.kelBaru = false; st.sumber = ''; }
+      m.$$('#tDompet [data-d]').forEach(function (c) { c.classList.toggle('on', c.dataset.d === st.dompet); });
+      st.kategori = r.kategori || ''; st.subkategori = r.subkategori || '';
+      const nom = m.$('#tNom'); nom.value = String(r.nominal); nom.dispatchEvent(new Event('input'));
+      if (r.tanggal) { const tg = m.$('#tTgl'); tg.value = r.tanggal; tg.dispatchEvent(new Event('change')); }
+      const ket = m.$('#tKet'); if (!ket.value.trim()) ket.value = r.keterangan || r.toko || '';
+      dyn(); label();
+      info.innerHTML = '<div class="note ok scan-hasil">' + ic('sparkles') + '<div><b>Terbaca' + (r.toko ? ': ' + e(r.toko) : '') + ' · ' + U.rp(r.nominal) + '</b>' +
+        (r.items && r.items.length ? '<div class="small">' + r.items.slice(0, 4).map(function (x) { return e(x.nama) + (x.harga ? ' ' + U.rpShort(x.harga) : ''); }).join(' · ') + (r.items.length > 4 ? ' …' : '') + '</div>' : '') +
+        '<div class="small">' + (r.kategori ? 'Disarankan: ' + e(U.DOMPET_LABEL[st.dompet]) + ' → ' + e(r.kategori) + '. ' : 'Pilih pos/kategori sendiri. ') + 'Periksa lagi sebelum menyimpan.</div></div></div>';
+      UI.animate(info);
+    }
 
     m.$('#tSave').onclick = async function () {
       const nominal = getNom();
       if (!nominal) return UI.toast('Isi nominal dulu.', 'error');
       if (!st.tanggal) return UI.toast('Pilih tanggal.', 'error');
-      if (st.dompet === 'Pribadi' && st.jenis === 'Pengeluaran' && !st.kategori) return UI.toast('Pilih salah satu dari 4 pos anggaran.', 'error');
+      if (st.dompet === 'Pribadi' && st.jenis === 'Pengeluaran' && !st.kategori) return UI.toast('Pilih salah satu dari 5 pos anggaran.', 'error');
       if (st.dompet === 'Pribadi' && st.jenis === 'Pemasukan' && (!st.sumber || st.sumber === 'Lainnya' && !(m.$('#tSrcIn') || {}).value)) return UI.toast('Isi sumber pemasukan.', 'error');
       const KL = st.dompet === 'Pondok' ? 'anggaran pondok' : 'kepanitiaan';
       let kelompokBaru;
@@ -225,7 +291,7 @@
       };
       // peringatan sebelum melewati batas (PRD US-D2)
       const a = b.anggaran.find(function (x) { return x.kategori === payload.kategori; });
-      if (st.dompet === 'Pribadi' && st.jenis === 'Pengeluaran' && a && a.kategori !== 'Tabungan' && payload.tanggal >= b.periode.mulai && payload.tanggal <= b.periode.akhir) {
+      if (st.dompet === 'Pribadi' && st.jenis === 'Pengeluaran' && a && U.POS_SIMPAN.indexOf(a.kategori) < 0 && payload.tanggal >= b.periode.mulai && payload.tanggal <= b.periode.akhir) {
         const tambah = nominal - (isEdit && pre.kategori === a.kategori ? pre.nominal : 0);
         if (a.terpakai + tambah > a.batas) {
           const lebih = a.terpakai + tambah - a.batas;
@@ -562,6 +628,23 @@
       foot: '<button class="btn btn-gold btn-block" data-close>Masya Allah, lanjutkan!</button>'
     });
   }
+
+  F.kunciJarvis = function (kunci) {
+    const url = API.url;
+    const env = 'SAFEMONEY_URL=' + url + '\nSAFEMONEY_KEY=' + kunci;
+    const m = UI.modal({
+      title: 'Kunci Jarvis', icon: 'key', tone: 't-violet', sub: 'Hanya ditampilkan sekali',
+      body: '<p style="margin-top:0">Tempel dua baris ini ke file <b>.env</b> Hermes (<code>%LOCALAPPDATA%\\hermes\\.env</code>), lalu jalankan <code>hermes gateway restart</code> dan kirim <code>/new</code> di Telegram.</p>' +
+        '<pre class="code-box" id="kjEnv">' + e(env) + '</pre>' +
+        '<div class="note warn">' + ic('alert') + '<div>Simpan kunci ini seperti PIN. Jangan dikirim ke chat atau ditulis di Obsidian. Kalau bocor, tekan <b>Cabut kunci</b> lalu buat yang baru.</div></div>',
+      foot: '<button class="btn btn-sec" data-close>Tutup</button><button class="btn btn-gold" id="kjCopy">' + ic('copy') + 'Salin</button>'
+    });
+    m.$('#kjCopy').onclick = function () {
+      const done = function () { UI.toast('Disalin. Tempel ke file .env Hermes.'); };
+      if (navigator.clipboard) navigator.clipboard.writeText(env).then(done).catch(pilih); else pilih();
+      function pilih() { const r = document.createRange(); r.selectNodeContents(m.$('#kjEnv')); const s = getSelection(); s.removeAllRanges(); s.addRange(r); UI.toast('Teks sudah dipilih — tekan Ctrl+C.', 'info'); }
+    };
+  };
 
   F.terapkanSaran = function () {
     const b = S.boot, st = b.saranTarget;
