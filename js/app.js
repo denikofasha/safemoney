@@ -97,6 +97,7 @@
     if (P.mount) P.mount(root, S);
     UI.animate(root);
     document.title = (P.title || 'SafeMoney') + ' · SafeMoney';
+    if (window.AIW) AIW.sync();
   };
 
   // ============================================================

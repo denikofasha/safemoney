@@ -34,9 +34,39 @@
       '<label class="dropzone" id="' + id + 'Z">' + ic('camera') + '<span id="' + id + 'T">Ambil foto atau pilih berkas</span>' +
       '<input type="file" id="' + id + '" accept="image/*,application/pdf" capture="environment" hidden></label></div>';
   }
-  function scanBox() {
-    return '<label class="scan-ai" id="tScan">' + '<span class="ic-tile t-violet">' + ic('sparkles') + '</span><div style="flex:1;min-width:0"><b>Baca foto nota otomatis</b><small>AI mengisi nominal, tanggal, keterangan &amp; pos. Butuh internet.</small></div>' +
-      ic('camera') + '<input type="file" id="tScanF" accept="image/*" hidden></label><div id="tScanInfo"></div>';
+  function scanBox(id, judul, sub) {
+    id = id || 't';
+    return '<label class="scan-ai" id="' + id + 'Scan">' + '<span class="ic-tile t-violet">' + ic('sparkles') + '</span><div style="flex:1;min-width:0"><b>' + (judul || 'Baca foto nota otomatis') + '</b><small>' + (sub || 'AI mengisi nominal, tanggal, keterangan &amp; pos. Butuh internet.') + '</small></div>' +
+      ic('camera') + '<input type="file" id="' + id + 'ScanF" accept="image/*" hidden></label><div id="' + id + 'ScanInfo" class="scan-info"></div>';
+  }
+  /** Baca foto bukti uang (pinjaman / hutang) dengan AI lalu isi form. */
+  function bindScanBukti(m, cfg) {
+    const f = m.$('#' + cfg.id + 'ScanF'), box = m.$('#' + cfg.id + 'Scan'), info = m.$('#' + cfg.id + 'ScanInfo');
+    if (!f) return;
+    const judul = box.querySelector('b').textContent;
+    f.addEventListener('change', async function () {
+      const file = f.files && f.files[0]; f.value = '';
+      if (!file) return;
+      const b = S.boot;
+      if (!(b.ai && b.ai.adaKunci)) { info.innerHTML = '<div class="note warn">' + ic('alert') + '<div>Fitur baca foto belum aktif. Isi API key Gemini di <b>Pengaturan → AI &amp; Jarvis</b>.</div></div>'; return; }
+      box.classList.add('busy'); box.querySelector('b').textContent = 'Membaca foto…'; info.innerHTML = '';
+      let foto;
+      try {
+        foto = await U.bacaBukti(file);
+        if (!/^image\//.test(foto.mime)) throw new Error('Pilih foto (bukan PDF).');
+        if (cfg.bukti && cfg.bukti.set) cfg.bukti.set(foto, file.name);
+        const r = await API.call('bacaNota', { mime: foto.mime, data: foto.data, konteks: cfg.konteks }, { timeout: 90000 });
+        if (!r.terbaca) { info.innerHTML = '<div class="note warn">' + ic('alert') + '<div>Nominal di foto tidak terbaca jelas. Foto tetap dilampirkan; isi nominal secara manual.</div></div>'; return; }
+        const nom = m.$('#' + cfg.nominal); nom.value = String(r.nominal); nom.dispatchEvent(new Event('input'));
+        if (r.tanggal && cfg.tanggal) { const tg = m.$('#' + cfg.tanggal); tg.value = r.tanggal; tg.dispatchEvent(new Event('change')); }
+        if (cfg.isi) cfg.isi(r);
+        info.innerHTML = '<div class="note ok">' + ic('sparkles') + '<div><b>Terbaca · ' + U.rp(r.nominal) + '</b>' + (r.tanggal ? ' · ' + U.masehi(r.tanggal) : '') +
+          (r.pihak || r.keterangan ? '<div class="small">' + e([r.pihak, r.keterangan].filter(Boolean).join(' — ')) + '</div>' : '') + '<div class="small">Periksa lagi sebelum menyimpan.</div></div></div>';
+        UI.animate(info);
+      } catch (err) {
+        info.innerHTML = '<div class="note danger">' + ic('alertCircle') + '<div>' + e(err.message) + '</div></div>';
+      } finally { box.classList.remove('busy'); box.querySelector('b').textContent = judul; }
+    });
   }
   function bindBukti(m, id) {
     const holder = { val: null };
@@ -387,7 +417,8 @@
     const jt = b.periode.id === b.periodeIni ? b.periode.akhir : (U.periodOf(b.hariIni) || b.periode).akhir;
     const m = UI.modal({
       title: 'Pinjam Antar Dana', icon: 'swap', tone: 't-gold', sub: 'Tidak dihitung sebagai pemasukan',
-      body: '<div class="grid g-2" style="gap:12px"><div class="field"><label class="label">Dari dompet (sumber)</label><select class="select" id="pjDari">' + opt('Terop') + '</select></div>' +
+      body: scanBox('pj', 'Baca foto bukti otomatis', 'Foto transfer / kuitansi / catatan serah terima — AI mengisi nominal &amp; tanggal.') +
+        '<div class="grid g-2" style="gap:12px"><div class="field"><label class="label">Dari dompet (sumber)</label><select class="select" id="pjDari">' + opt('Terop') + '</select></div>' +
         '<div class="field" style="margin-top:0"><label class="label">Ke dompet (penerima)</label><select class="select" id="pjKe">' + opt('Pribadi') + '</select></div></div>' +
         '<div class="note info" style="margin-top:12px" id="pjInfo"></div>' +
         '<div style="margin-top:14px">' + amountField('pjNom', 0, 'Nominal pinjaman') + '</div>' +
@@ -399,6 +430,8 @@
     const getNom = bindAmount(m, 'pjNom', info);
     bindDate(m, 'pjTgl'); bindDate(m, 'pjJt');
     const pjBukti = bindBukti(m, 'pjBukti');
+    bindScanBukti(m, { id: 'pj', konteks: 'pinjaman', bukti: pjBukti, nominal: 'pjNom', tanggal: 'pjTgl',
+      isi: function (r) { const a = m.$('#pjAlasan'); if (!a.value.trim() && r.keterangan) a.value = r.keterangan; } });
     function info() {
       const d = m.$('#pjDari').value, k = m.$('#pjKe').value, n = getNom();
       const el = m.$('#pjInfo');
@@ -475,7 +508,8 @@
     const b = S.boot;
     const m = UI.modal({
       title: h.id ? 'Ubah Hutang' : 'Catat Hutang', icon: 'user', tone: 't-coral',
-      body: '<div class="field"><label class="label">Nama pihak (kreditur) <span class="req">*</span></label><input class="input" id="hNama" placeholder="Contoh: Ust. Ahmad" value="' + e(h.nama || '') + '"></div>' +
+      body: (h.id ? '' : scanBox('h', 'Baca foto bukti otomatis', 'Foto kuitansi / transfer / catatan — AI mengisi nominal, tanggal &amp; nama.')) +
+        '<div class="field"><label class="label">Nama pihak (kreditur) <span class="req">*</span></label><input class="input" id="hNama" placeholder="Contoh: Ust. Ahmad" value="' + e(h.nama || '') + '"></div>' +
         '<div style="margin-top:14px">' + amountField('hNom', h.nominal, 'Nominal hutang') + '</div>' +
         '<div class="grid g-2" style="gap:12px">' + dateField('hTgl', h.tanggal || b.hariIni, 'Tanggal') + '<div style="margin-top:14px">' + dateField('hJt', h.jatuhTempo || '', 'Jatuh tempo (opsional)') + '</div></div>' +
         '<div class="set-row" style="margin-top:8px"><div class="txt"><b>Uangnya masuk ke saldo Pribadi</b><small>Aktifkan jika uang pinjaman diterima tunai (bukan pemasukan)</small></div><label class="switch"><input type="checkbox" id="hMasuk" ' + (h.id ? (h.masukSaldo ? 'checked' : '') : 'checked') + '><span></span></label></div>' +
@@ -485,6 +519,8 @@
     });
     const getNom = bindAmount(m, 'hNom'); bindDate(m, 'hTgl'); bindDate(m, 'hJt');
     const hBukti = bindBukti(m, 'hBukti');
+    if (!h.id) bindScanBukti(m, { id: 'h', konteks: 'hutang', bukti: hBukti, nominal: 'hNom', tanggal: 'hTgl',
+      isi: function (r) { const n = m.$('#hNama'), c = m.$('#hCat'); if (!n.value.trim() && r.pihak) n.value = r.pihak; if (!c.value.trim() && r.keterangan) c.value = r.keterangan; } });
     m.$('#hSave').onclick = async function () {
       const d = { id: h.id, nama: m.$('#hNama').value.trim(), nominal: getNom(), tanggal: m.$('#hTgl').value, jatuhTempo: m.$('#hJt').value, masukSaldo: m.$('#hMasuk').checked, catatan: m.$('#hCat').value };
       if (!d.nama) return UI.toast('Isi nama pihak.', 'error');
@@ -506,7 +542,7 @@
     let pos = 'Kebutuhan Primer';
     const m = UI.modal({
       title: 'Bayar Hutang', icon: 'banknote', tone: 't-em', sub: 'Ke ' + e(h.nama) + ' · sisa ' + U.rp(h.sisa),
-      body: amountField('bhNom', h.sisa, 'Nominal pembayaran') +
+      body: scanBox('bh', 'Baca foto bukti bayar', 'Foto transfer / kuitansi — AI mengisi nominal &amp; tanggal.') + amountField('bhNom', h.sisa, 'Nominal pembayaran') +
         '<div class="sect-title">Dibebankan ke pos anggaran</div><div class="choice-grid c3">' + ['Kebutuhan Primer', 'Investasi Otak/Tubuh', 'Jajanan'].map(function (k) {
           return '<button class="choice ' + (k === pos ? 'on' : '') + '" data-k="' + k + '"><b>' + U.POS_SINGKAT[k] + '</b><small>' + Math.round((b.anggaran.find(function (a) { return a.kategori === k; }) || {}).pct || 0) + '% terpakai</small><span class="chk">' + ic('checkCircle', 'sm') + '</span></button>';
         }).join('') + '</div>' + dateField('bhTgl', b.hariIni, 'Tanggal bayar') +
@@ -517,6 +553,8 @@
     });
     const getNom = bindAmount(m, 'bhNom'); bindDate(m, 'bhTgl');
     const bhBukti = bindBukti(m, 'bhBukti');
+    bindScanBukti(m, { id: 'bh', konteks: 'bayarHutang', bukti: bhBukti, nominal: 'bhNom', tanggal: 'bhTgl',
+      isi: function (r) { const c = m.$('#bhCat'); if (!c.value.trim() && r.keterangan) c.value = r.keterangan; } });
     m.$$('[data-k]').forEach(function (x) { x.onclick = function () { pos = x.dataset.k; m.$$('[data-k]').forEach(function (c) { c.classList.toggle('on', c === x); }); }; });
     m.$('#bhSave').onclick = async function () {
       const n = getNom();
