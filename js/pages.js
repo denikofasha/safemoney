@@ -767,6 +767,8 @@
         '<div class="field"><label class="label">API key Gemini <span class="hint">dari Google AI Studio · disimpan aman di server, tidak bisa dilihat lagi</span></label>' +
         '<div class="row"><input class="input" id="aiKey" type="password" autocomplete="off" placeholder="' + (ai.adaKunci ? '•••••••• (tersimpan) — isi untuk mengganti' : 'Tempel API key di sini') + '"><button class="btn btn-gold" id="aiSimpan">' + ic('save') + 'Simpan &amp; tes</button></div></div>' +
         '<div class="field"><label class="label">Model <span class="hint">ganti bila Google merilis model baru</span></label><div class="row"><input class="input" id="aiModel" value="' + e(ai.model || 'gemini-3.5-flash-lite') + '"><button class="btn btn-sec" id="aiModelSimpan">Simpan model</button></div></div>' +
+        '<div class="field"><label class="label">Model Konsultan AI <span class="hint">lebih cermat untuk analisis &amp; saran</span></label><div class="row"><input class="input" id="aiModelK" value="' + e(ai.modelKonsultan || 'gemini-3.6-flash') + '"><button class="btn btn-sec" id="aiModelKSimpan">Simpan model</button></div></div>' +
+        '<div class="note info" style="margin-top:12px">' + ic('sparkles') + '<div>Konsultasi &amp; catatan pengetahuan ada di menu <b>Konsultan AI</b>. <button class="link" id="aiKeKonsultan">Buka ' + ic('arrowRight', 'sm') + '</button></div></div>' +
         (ai.adaKunci ? '<div class="row" style="justify-content:flex-end;margin-top:12px"><button class="btn btn-sm btn-danger-out" id="aiHapus">' + ic('trash', 'sm') + 'Hapus API key</button></div>' : '') + '</div>' +
         '<div class="card" style="margin-top:22px"><div class="card-head"><span class="ic-tile t-navy">' + ic('send') + '</span><div><h3>Jarvis (Telegram)</h3><div class="small muted">Jarvis boleh membaca ringkasan &amp; mencatat transaksi. Tidak bisa menghapus, mengubah anggaran, atau pengaturan.</div></div>' +
         '<span class="pill ' + (ai.agen.aktif ? 'p-aman' : 'p-mute') + '" style="margin-left:auto">' + (ai.agen.aktif ? 'Tersambung' : 'Belum') + '</span></div>' +
@@ -774,7 +776,7 @@
         '<div class="row btn-row" style="justify-content:flex-end;gap:10px;margin-top:14px">' + (ai.agen.aktif ? '<button class="btn btn-danger-out" id="agCabut">' + ic('xCircle', 'sm') + 'Cabut kunci</button>' : '') +
         '<button class="btn btn-navy" id="agBuat">' + ic('key') + (ai.agen.aktif ? 'Buat kunci baru' : 'Buat kunci Jarvis') + '</button></div></div>';
     }
-    return '<div class="card"><div class="center" style="padding:10px 0 16px"><img src="assets/logo-mark.png" alt="" style="width:84px;margin:0 auto 10px"><h2 style="margin:0">Safe<span style="color:var(--amber-ink)">Money</span></h2><div class="muted small">Versi 1.2.0 · Frontend GitHub Pages + Google Apps Script</div></div>' +
+    return '<div class="card"><div class="center" style="padding:10px 0 16px"><img src="assets/logo-mark.png" alt="" style="width:84px;margin:0 auto 10px"><h2 style="margin:0">Safe<span style="color:var(--amber-ink)">Money</span></h2><div class="muted small">Versi 1.3.0 · Frontend GitHub Pages + Google Apps Script</div></div>' +
       '<div class="set-row"><div class="txt"><b>Data tersimpan di</b><small>Google Sheets "SafeMoney_DB" & folder Drive "SafeMoney" milik Anda</small></div></div>' +
       '<div class="set-row"><div class="txt"><b>Lupa PIN?</b><small>Jalankan fungsi resetPin() di editor Apps Script, lalu buat PIN baru di aplikasi.</small></div></div>' +
       '<div class="set-row"><div class="txt"><b>Muat ulang data</b><small>Ambil data terbaru dari server</small></div><button class="btn btn-sm btn-sec" id="reload">' + ic('refresh', 'sm') + 'Muat ulang</button></div>' +
@@ -832,6 +834,8 @@
         simpan(this, { __aksi: 'simpanKunciAI', d: { apiKey: k } }, 'API key tersimpan & berhasil dites. Baca nota aktif.');
       };
       U.$('#aiModelSimpan', root).onclick = function () { simpan(this, { __aksi: 'simpanPengaturan', d: { gemini_model: U.$('#aiModel', root).value.trim() } }, 'Model disimpan.'); };
+      U.$('#aiModelKSimpan', root).onclick = function () { simpan(this, { __aksi: 'simpanPengaturan', d: { gemini_model_konsultan: U.$('#aiModelK', root).value.trim() } }, 'Model konsultan disimpan.'); };
+      U.$('#aiKeKonsultan', root).onclick = function () { App.go('konsultan'); };
       const hp = U.$('#aiHapus', root);
       if (hp) hp.onclick = async function () {
         if (!(await UI.confirm({ title: 'Hapus API key?', text: 'Fitur baca nota akan nonaktif sampai key diisi lagi.', ok: 'Hapus' }))) return;

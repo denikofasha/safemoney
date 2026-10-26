@@ -16,6 +16,7 @@
     { id: 'pinjaman', label: 'Pinjaman & Hutang', ik: 'swap' },
     { id: 'target', label: 'Target', ik: 'flag' },
     { id: 'laporan', label: 'Laporan', ik: 'chart' },
+    { id: 'konsultan', label: 'Konsultan AI', ik: 'sparkles' },
     { id: 'pengaturan', label: 'Pengaturan', ik: 'settings' }
   ];
 
@@ -163,6 +164,7 @@
         item('terop', 'tent', 'Dana Terop', 't-gold', 'Kas sewa terop') +
         item('pinjaman', 'swap', 'Pinjaman & Hutang', 't-coral', 'Kewajiban berjalan') +
         item('laporan', 'chart', 'Laporan', 't-navy', 'Grafik & PDF') +
+        item('konsultan', 'sparkles', 'Konsultan AI', 't-violet', 'Tanya & minta saran') +
         item('pengaturan', 'settings', 'Pengaturan', 't-navy', 'PIN, kutipan, kalender') +
         '</div><button class="btn btn-danger-out btn-block" id="mLogout" style="margin-top:16px">' + ic('lock') + 'Keluar dari perangkat ini</button>'
     });
