@@ -67,6 +67,8 @@
       const pin = b.pinjaman.filter(function (p) { return p.status === 'Berjalan'; });
       const hut = b.hutang.filter(function (h) { return h.status === 'Berjalan'; });
       const tanggungan = pin.filter(function (p) { return p.ke === 'Pribadi'; }).reduce(function (s, p) { return s + p.sisa; }, 0) + hut.reduce(function (s, h) { return s + h.sisa; }, 0);
+      const pos = (b.posisi && b.posisi.Pribadi) || { diTangan: b.saldo.Pribadi, kembalikan: 0, diLuar: 0, milik: b.saldo.Pribadi };
+      const ptg = (b.piutang || []).filter(function (x) { return x.status === 'Berjalan'; });
       const terbaru = b.transaksi.slice(0, 6);
       const nama = (b.pengaturan.nama_pemilik || '').split(' ')[0];
 
@@ -80,8 +82,13 @@
           '<button class="x" data-hide="' + e(banner.judul + banner.pesan) + '" aria-label="Tutup">' + ic('x', 'sm') + '</button></div>' : '') +
 
         '<div class="grid g-12" style="margin-top:22px">' +
-        '<div class="card balance span-7"><div class="row"><span class="eyebrow">' + ic('landmark', 'sm') + ' Total Saldo Pribadi</span><span class="tag-glass"><i class="dot" style="width:7px;height:7px;border-radius:50%;background:#10B981;display:inline-block"></i>Kas Aktif</span></div>' +
+        '<div class="card balance span-7"><div class="row"><span class="eyebrow">' + ic('landmark', 'sm') + ' Uang Pribadi di Tangan</span><button class="tag-glass" data-go="cocokkan" title="Cocokkan dengan uang nyata">' + ic('scale', 'sm') + 'Cocokkan</button></div>' +
         '<div class="big num"><span data-count="' + b.saldo.Pribadi + '">' + U.rp(b.saldo.Pribadi) + '</span><small>IDR</small></div>' +
+        (pos.kembalikan || pos.diLuar ? '<div class="posisi">' +
+          (pos.kembalikan ? '<div><small>' + ic('arrowUp', 'sm') + 'Wajib dikembalikan</small><b class="num">− ' + U.rp(pos.kembalikan) + '</b></div>' : '') +
+          (pos.diLuar ? '<div><small>' + ic('arrowDown', 'sm') + 'Dipinjam pihak lain</small><b class="num">+ ' + U.rp(pos.diLuar) + '</b></div>' : '') +
+          '<div class="milik"><small>' + ic('wallet', 'sm') + 'Milik Anda sendiri</small><b class="num">' + U.rp(pos.milik) + '</b></div>' +
+          '<button class="posisi-info" data-act="posisi" aria-label="Rincian">' + ic('info', 'sm') + '</button></div>' : '') +
         '<div class="sub">' + ic('checkCircle') + 'Pemasukan pasti (Ihsan): <b>' + U.rp(r.pemasukanPasti || r.ihsanBulanan) + '</b>' + (!r.pemasukanPasti ? ' <span style="opacity:.7">(perkiraan)</span>' : '') + '</div>' +
         '<div class="in-out"><div><small>' + ic('arrowDown', 'sm') + 'Pemasukan bulan ini</small><b class="vin num">+ ' + U.rp(r.pemasukan) + '</b></div>' +
         '<div><small>' + ic('arrowUp', 'sm') + 'Pengeluaran bulan ini</small><b class="vout num">− ' + U.rp(r.pengeluaran) + '</b></div></div>' +
@@ -111,14 +118,16 @@
         '<div class="grid g-3" style="margin-top:22px">' +
         walletCard('Pondok', b.saldo.Pondok, 'Saldo tercatat', b.belumNota.length ? '<span class="pill p-hampir">' + ic('paperclip') + b.belumNota.length + ' belum ada nota</span>' : '<span class="pill p-aman">' + ic('checkCircle') + 'Nota lengkap</span>', 'Amanah kas pondok') +
         walletCard('Terop', b.saldo.Terop, 'Saldo tersedia', '<span class="pill p-info">' + ic('arrowDown') + 'Masuk ' + U.rp(r.teropMasuk) + '</span>', 'Bulan ini') +
-        '<div class="card hover"><div class="card-head"><span class="ic-tile t-coral">' + ic('swap') + '</span><h3>Pinjaman & Hutang</h3><button class="link" data-go="pinjaman">Kelola' + ic('arrowRight', 'sm') + '</button></div>' +
-        (pin.length || hut.length ? pin.slice(0, 2).map(function (p) {
+        '<div class="card hover"><div class="card-head"><span class="ic-tile t-coral">' + ic('swap') + '</span><h3>Pinjam & Piutang</h3><button class="link" data-go="pinjaman">Kelola' + ic('arrowRight', 'sm') + '</button></div>' +
+        (pin.length || hut.length || ptg.length ? pin.slice(0, 2).map(function (p) {
           const h = p.jatuhTempo ? U.diffDays(b.hariIni, p.jatuhTempo) : 99;
-          return '<div class="mini-row"><div style="flex:1"><span class="muted">' + (p.ke === 'Pribadi' ? 'Pinjam dari Dana ' + e(p.dari) : 'Talangan ke Dana ' + e(p.ke) + ' (piutang)') + '</span><b class="num">' + U.rp(p.sisa) + '</b></div>' + (h <= 3 ? '<span class="pill p-lewat">' + (h < 0 ? 'Lewat' : 'Segera') + '</span>' : '<span class="pill p-mute">' + h + ' hari</span>') + '</div>';
+          return '<div class="mini-row"><div style="flex:1;min-width:0"><span class="muted">' + (p.ke === 'Pribadi' ? 'Pinjam dari ' + e(p.kasDari || U.DOMPET_LABEL[p.dari]) : e(p.kasDari || p.dari) + ' → ' + e(p.kasKe || p.ke)) + '</span><b class="num">' + U.rp(p.sisa) + '</b></div>' + (h <= 3 ? '<span class="pill p-lewat">' + (h < 0 ? 'Lewat' : 'Segera') + '</span>' : '<span class="pill p-mute">' + h + ' hari</span>') + '</div>';
         }).join('') + hut.slice(0, 2).map(function (h) {
           return '<div class="mini-row"><div style="flex:1"><span class="muted">Hutang ke ' + e(h.nama) + '</span><b class="num">sisa ' + U.rp(h.sisa) + '</b></div><span class="pill p-mute">Dicicil</span></div>';
+        }).join('') + ptg.slice(0, 2).map(function (x) {
+          return '<div class="mini-row"><div style="flex:1;min-width:0"><span class="muted">Piutang ' + e(x.nama) + ' · ' + e(x.kas) + '</span><b class="num in">' + U.rp(x.sisa) + '</b></div><span class="pill p-info">Ditagih</span></div>';
         }).join('') + '<div class="row" style="margin-top:12px;font-size:13px"><span class="muted">Total tanggungan pribadi</span><b class="out num" style="margin-left:auto">' + U.rp(tanggungan) + '</b></div>'
-          : UI.empty('checkCircle', 'Bebas tanggungan', 'Tidak ada pinjaman atau hutang berjalan.')) + '</div></div>' +
+          : UI.empty('checkCircle', 'Bebas tanggungan', 'Tidak ada pinjaman, hutang, atau piutang berjalan.')) + '</div></div>' +
 
         '<div class="card solid" style="margin-top:22px"><div class="card-head"><span class="ic-tile t-navy">' + ic('list') + '</span><div><h3>Transaksi Terbaru</h3><div class="small muted">Mutasi kas masuk & keluar ' + e(b.periode.nama) + '</div></div>' +
         '<button class="btn btn-navy btn-sm hide-m" style="margin-left:auto" data-act="catat">' + ic('plus', 'sm') + 'Catat Transaksi</button></div>' +
@@ -133,6 +142,7 @@
       U.$$('[data-hide]', root).forEach(function (b) { b.onclick = function () { S.hiddenBanner[b.dataset.hide] = 1; U.session.set('sm_hidebanner', S.hiddenBanner); b.parentNode.remove(); }; });
       const tb = root.querySelector('[data-act="target-baru"]'); if (tb) tb.onclick = function () { Forms.target(); };
       const ev = root.querySelector('[data-act="evaluasi"]'); if (ev) ev.onclick = function () { Forms.terapkanEvaluasi(); };
+      const ps = root.querySelector('[data-act="posisi"]'); if (ps) ps.onclick = function () { Forms.posisi('Pribadi'); };
       quoteSlider(root, S);
     }
   };
@@ -368,7 +378,7 @@
         S.wTab = S.wTab || {}; const tab = S.wTab[dompet] || 'kelompok';
         const list = b.transaksi.filter(function (t) { return t.dompet === dompet; });
         const masuk = isP ? r.pondokMasuk : r.teropMasuk, keluar = isP ? r.pondokKeluar : r.teropKeluar;
-        const pinjKeluar = b.pinjaman.filter(function (p) { return p.status === 'Berjalan' && p.dari === dompet; }).reduce(function (s, p) { return s + p.sisa; }, 0);
+        const pinjKeluar = ((b.posisi && b.posisi[dompet]) || { diLuar: b.pinjaman.filter(function (p) { return p.status === 'Berjalan' && p.dari === dompet; }).reduce(function (s, p) { return s + p.sisa; }, 0) }).diLuar;
         const tone = isP ? 't-em' : 't-gold';
         const nota = isP ? b.belumNota : [];
         const kel = (b.kelompokDana || []).filter(function (k) { return k.dompet === dompet; });
@@ -415,7 +425,7 @@
           '<p>Terpisah dari uang pribadi — tidak memengaruhi anggaran 5 pos.</p></div><div class="actions">' +
           '<button class="btn btn-sec" data-act="pdf">' + ic('download') + 'Unduh PDF</button><button class="btn btn-gold" data-act="catat-w">' + ic('plus') + (isP ? 'Catat Dana Pondok' : 'Catat Dana Terop') + '</button></div></div>' +
           '<div class="grid g-4 stagger">' +
-          stat('Saldo', U.rp(b.saldo[dompet]), 'wallet', tone, pinjKeluar ? 'Dipinjam ' + U.rp(pinjKeluar) : 'Seluruh periode') +
+          stat('Saldo di tangan', U.rp(b.saldo[dompet]), 'wallet', tone, pinjKeluar ? 'Sedang dipinjam ' + U.rp(pinjKeluar) + ' · total amanah ' + U.rp(b.saldo[dompet] + pinjKeluar) : 'Seluruh periode') +
           stat('Diterima', U.rp(masuk), 'arrowDown', 't-em', b.periode.nama, 'in') +
           stat('Dikeluarkan', U.rp(keluar), 'arrowUp', 't-coral', b.periode.nama, 'out') +
           stat(L.satu + ' aktif', aktif.length + (isP ? ' anggaran' : ' kepanitiaan'), L.ik, 't-navy', isP && nota.length ? nota.length + ' transaksi belum ada nota' : (pinjKeluar ? 'Pinjaman keluar ' + U.rp(pinjKeluar) : 'Dikelompokkan rapi')) +
@@ -455,7 +465,9 @@
         (k.tanpa ? '' : '<button class="link" data-kel-edit="' + k.id + '" aria-label="Ubah">' + ic('edit', 'sm') + '</button>') + '</div>' +
         (k.keterangan && !k.tanpa ? '<div class="small muted" style="margin-top:8px">' + e(k.keterangan) + '</div>' : '') +
         '<div class="kv" style="margin:12px 0 10px"><span>Dana masuk</span><b class="num in">' + U.rp(k.masuk) + '</b><span>' + (isP ? 'Terpakai' : 'Pengeluaran') + '</span><b class="num out">' + U.rp(k.keluar) + '</b>' +
-        '<span>Sisa kas</span><b class="num">' + U.rp(k.saldo) + '</b>' + (isPg ? '<span>Pagu anggaran</span><b class="num">' + U.rp(k.pagu) + '</b>' : '') + '</div>' +
+        (k.dipinjamkan ? '<span>Sedang dipinjam</span><b class="num out">' + U.rp(k.dipinjamkan) + '</b>' : '') +
+        (k.pinjamMasuk ? '<span>Pinjaman masuk</span><b class="num in">' + U.rp(k.pinjamMasuk) + '</b>' : '') +
+        '<span>Sisa kas di tangan</span><b class="num">' + U.rp(k.saldo) + '</b>' + (isPg ? '<span>Pagu anggaran</span><b class="num">' + U.rp(k.pagu) + '</b>' : '') + '</div>' +
         (isPg ? '<div class="row small"><span class="muted">Terpakai dari pagu</span><b style="margin-left:auto" class="' + (k.pct > 100 ? 'out' : '') + '">' + Math.round(k.pct) + '%</b></div><div style="margin:6px 0 4px">' + UI.bar(k.pct, k.pct > 100 ? 'coral' : k.pct >= 80 ? '' : 'em') + '</div>' : '') +
         (k.status === 'Selesai' ? '<span class="pill p-mute" style="margin-top:6px">' + ic('checkCircle') + 'Selesai</span>' : '') +
         '<div class="row" style="margin-top:auto;padding-top:12px;gap:8px">' + (k.tanpa || k.status === 'Selesai' ? '' : '<button class="btn btn-gold btn-sm" style="flex:1" data-kel-catat="' + k.id + '">' + ic('plus', 'sm') + 'Catat</button>') +
@@ -472,48 +484,63 @@
   // PINJAMAN & HUTANG
   // ============================================================
   Pages.pinjaman = {
-    title: 'Pinjaman & Hutang',
+    title: 'Pinjam, Hutang & Piutang',
     render: function (S) {
       const b = S.boot; const tab = S.pTab || 'pinjam';
       const pin = b.pinjaman.filter(function (p) { return p.status === 'Berjalan'; });
       const hut = b.hutang.filter(function (h) { return h.status === 'Berjalan'; });
+      const ptgAll = b.piutang || [];
+      const ptg = ptgAll.filter(function (x) { return x.status === 'Berjalan'; });
       const lunas = b.pinjaman.filter(function (p) { return p.status === 'Lunas'; }).map(function (p) { return { t: 'p', x: p }; })
-        .concat(b.hutang.filter(function (h) { return h.status === 'Lunas'; }).map(function (h) { return { t: 'h', x: h }; }));
+        .concat(b.hutang.filter(function (h) { return h.status === 'Lunas'; }).map(function (h) { return { t: 'h', x: h }; }))
+        .concat(ptgAll.filter(function (x) { return x.status !== 'Berjalan'; }).map(function (x) { return { t: 'r', x: x }; }))
+        .sort(function (a, c) { return a.x.tanggal < c.x.tanggal ? 1 : -1; });
       const totPin = pin.reduce(function (s, p) { return s + p.sisa; }, 0), totHut = hut.reduce(function (s, h) { return s + h.sisa; }, 0);
-      const jt = pin.map(function (p) { return p.jatuhTempo; }).concat(hut.map(function (h) { return h.jatuhTempo; })).filter(Boolean).sort()[0];
+      const totPtg = ptg.reduce(function (s, x) { return s + x.sisa; }, 0);
+      const jt = pin.map(function (p) { return p.jatuhTempo; }).concat(hut.map(function (h) { return h.jatuhTempo; })).concat(ptg.map(function (x) { return x.jatuhTempo; })).filter(Boolean).sort()[0];
       const hJt = jt ? U.diffDays(b.hariIni, jt) : null;
       let isi;
       if (tab === 'pinjam') {
         isi = '<div class="note info" style="margin-bottom:18px">' + ic('shield') + '<div><b>Kaidah amanah:</b> pinjaman antar dana <b>tidak dihitung sebagai pemasukan pribadi</b>. Ia menambah kas sementara dan tercatat sebagai kewajiban yang wajib dikembalikan — tanpa tambahan apa pun.</div></div>' +
           (pin.length ? '<div class="grid g-2">' + pin.map(kartuPinjam).join('') + '</div>' : '<div class="card">' + UI.empty('swap', 'Tidak ada pinjaman berjalan', 'Butuh dana mendesak? Catat pinjaman dari kas lain agar tidak lupa dikembalikan.', '<button class="btn btn-gold" style="margin-top:12px" data-act="pinjam">' + ic('plus') + 'Pinjam Antar Dana</button>') + '</div>');
+      } else if (tab === 'piutang') {
+        isi = '<div class="note info" style="margin-bottom:18px">' + ic('handCoins') + '<div><b>Piutang</b> = uang Anda (atau dana amanah) yang sedang dipinjam orang lain. Saldo dana asal berkurang selama belum kembali, tetapi <b>tidak dihitung sebagai pengeluaran</b> anggaran.</div></div>' +
+          (ptg.length ? '<div class="grid g-2">' + ptg.map(kartuPiutang).join('') + '</div>' : '<div class="card">' + UI.empty('handCoins', 'Tidak ada piutang berjalan', 'Meminjamkan uang ke orang lain? Catat di sini lengkap dengan kas asalnya.', '<button class="btn btn-gold" style="margin-top:12px" data-act="piutang">' + ic('plus') + 'Catat Piutang</button>') + '</div>');
       } else if (tab === 'hutang') {
         isi = hut.length ? '<div class="grid g-2">' + hut.map(kartuHutang).join('') + '</div>' : '<div class="card">' + UI.empty('handCoins', 'Tidak ada hutang', 'Hutang ke orang lain yang dicatat akan muncul di sini.', '<button class="btn btn-gold" style="margin-top:12px" data-act="hutang">' + ic('plus') + 'Catat Hutang</button>') + '</div>';
       } else {
         isi = '<div class="card solid">' + (lunas.length ? lunas.map(function (l) {
           const x = l.x;
-          return '<div class="set-row"><span class="ic-tile t-em">' + ic('checkCircle') + '</span><div class="txt"><b>' + (l.t === 'p' ? 'Dana ' + e(x.dari) + ' → ' + e(x.ke) : 'Hutang ke ' + e(x.nama)) + '</b><small>' + U.hijriLabel(x.tanggal) + ' · ' + e(x.alasan || x.catatan || '') + '</small></div><b class="num">' + U.rp(x.nominal) + '</b><span class="pill p-aman">Lunas</span></div>';
+          const judul = l.t === 'p' ? e(x.kasDari || x.dari) + ' → ' + e(x.kasKe || x.ke) : l.t === 'h' ? 'Hutang ke ' + e(x.nama) : 'Piutang ' + e(x.nama) + ' · ' + e(x.kas);
+          const pill = l.t === 'r' && x.status === 'Diikhlaskan' ? '<span class="pill p-violet">Diikhlaskan</span>' : '<span class="pill p-aman">Lunas</span>';
+          return '<div class="set-row"' + (l.t === 'r' ? ' data-detail-r="' + x.id + '" style="cursor:pointer"' : '') + '><span class="ic-tile t-em">' + ic('checkCircle') + '</span><div class="txt"><b>' + judul + '</b><small>' + U.hijriLabel(x.tanggal) + ' · ' + e(x.alasan || x.catatan || '') + '</small></div><b class="num">' + U.rp(x.nominal) + '</b>' + pill + '</div>';
         }).join('') : UI.empty('history', 'Belum ada riwayat lunas', '')) + '</div>';
       }
-      return '<div class="page-head"><div><span class="eyebrow">Amanah & hutang piutang</span><h1>Pinjaman & Hutang</h1><p>Catat pinjam antar dana (Pondok/Terop/Pribadi) dan hutang ke pihak lain, lengkap dengan pengingat jatuh tempo.</p></div>' +
-        '<div class="actions"><button class="btn btn-sec" data-act="hutang">' + ic('plus') + 'Catat Hutang</button><button class="btn btn-gold" data-act="pinjam">' + ic('swap') + 'Pinjam Antar Dana</button></div></div>' +
+      const tb = function (id, ik, label, n) { return '<button class="' + (tab === id ? 'on' : '') + '" data-tab="' + id + '">' + ic(ik) + label + (n != null ? ' <span class="badge">' + n + '</span>' : '') + '</button>'; };
+      return '<div class="page-head"><div><span class="eyebrow">Amanah & hutang piutang</span><h1>Pinjam, Hutang & Piutang</h1><p>Catat pinjam antar dana lengkap dengan kas asalnya, hutang ke orang lain, dan uang Anda yang dipinjam orang (piutang).</p></div>' +
+        '<div class="actions"><button class="btn btn-sec" data-act="hutang">' + ic('plus') + 'Hutang</button><button class="btn btn-sec" data-act="piutang">' + ic('handCoins') + 'Piutang</button><button class="btn btn-gold" data-act="pinjam">' + ic('swap') + 'Pinjam Antar Dana</button></div></div>' +
         '<div class="grid g-4 stagger">' +
-        stat('Total pinjaman & hutang', U.rp(totPin + totHut), 'landmark', 't-navy', pin.length + ' pinjaman · ' + hut.length + ' hutang') +
-        stat('Pinjam antar dana', U.rp(totPin), 'swap', 't-gold', 'Kewajiban berjalan') +
+        stat('Pinjam antar dana', U.rp(totPin), 'swap', 't-gold', pin.length + ' berjalan · wajib dikembalikan') +
         stat('Hutang ke orang lain', U.rp(totHut), 'user', 't-coral', hut[0] ? 'Kreditur: ' + hut[0].nama : '-') +
+        stat('Piutang (di orang lain)', U.rp(totPtg), 'handCoins', 't-em', ptg.length ? ptg.length + ' orang · belum kembali' : 'Tidak ada', 'in') +
         '<div class="card stat"><div class="k">Jatuh tempo terdekat<span class="ic-tile ' + (hJt != null && hJt <= 3 ? 't-coral' : 't-navy') + '">' + ic('bell') + '</span></div><div class="v" style="font-size:18px">' + (jt ? e(U.hijriLabel(jt, 'H')) : '—') + '</div>' +
         '<div class="s">' + (jt ? U.masehi(jt) + ' · ' + (hJt < 0 ? '<span class="pill p-lewat">Lewat ' + (-hJt) + ' hari</span>' : hJt === 0 ? '<span class="pill p-lewat">Hari ini</span>' : '<span class="pill ' + (hJt <= 3 ? 'p-lewat' : 'p-mute') + '">' + hJt + ' hari lagi</span>') : 'Tidak ada') + '</div></div>' +
         '</div><div class="tabs" style="margin-top:22px">' +
-        '<button class="' + (tab === 'pinjam' ? 'on' : '') + '" data-tab="pinjam">' + ic('swap') + 'Pinjam Antar Dana <span class="badge">' + pin.length + '</span></button>' +
-        '<button class="' + (tab === 'hutang' ? 'on' : '') + '" data-tab="hutang">' + ic('users') + 'Hutang ke Orang Lain <span class="badge">' + hut.length + '</span></button>' +
-        '<button class="' + (tab === 'lunas' ? 'on' : '') + '" data-tab="lunas">' + ic('checkCircle') + 'Riwayat Lunas</button></div>' + isi;
+        tb('pinjam', 'swap', 'Pinjam Antar Dana', pin.length) + tb('piutang', 'handCoins', 'Piutang', ptg.length) +
+        tb('hutang', 'users', 'Hutang', hut.length) + tb('lunas', 'checkCircle', 'Riwayat Selesai') + '</div>' + isi;
     },
     mount: function (root, S) {
       U.$$('[data-tab]', root).forEach(function (b) { b.onclick = function () { S.pTab = b.dataset.tab; App.render(); }; });
       U.$$('[data-act="pinjam"]', root).forEach(function (b) { b.onclick = function () { Forms.pinjam(); }; });
       U.$$('[data-act="hutang"]', root).forEach(function (b) { b.onclick = function () { Forms.hutang(); }; });
+      U.$$('[data-act="piutang"]', root).forEach(function (b) { b.onclick = function () { Forms.piutang(); }; });
+      const cariR = function (id) { return (S.boot.piutang || []).find(function (x) { return x.id === id; }); };
+      U.$$('[data-terima-r]', root).forEach(function (b) { b.onclick = function () { Forms.terimaPiutang(cariR(b.dataset.terimaR)); }; });
+      U.$$('[data-detail-r]', root).forEach(function (b) { b.onclick = function () { Forms.detailPiutang(cariR(b.dataset.detailR)); }; });
       U.$$('[data-bayar-p]', root).forEach(function (b) { b.onclick = function () { Forms.bayarPinjaman(S.boot.pinjaman.find(function (p) { return p.id === b.dataset.bayarP; }), b.dataset.full === '1'); }; });
       U.$$('[data-bayar-h]', root).forEach(function (b) { b.onclick = function () { Forms.bayarHutang(S.boot.hutang.find(function (h) { return h.id === b.dataset.bayarH; })); }; });
       U.$$('[data-detail-p]', root).forEach(function (b) { b.onclick = function () { Forms.detailPinjaman(S.boot.pinjaman.find(function (p) { return p.id === b.dataset.detailP; })); }; });
+      U.$$('[data-ubah-p]', root).forEach(function (b) { b.onclick = function () { Forms.ubahPinjaman(S.boot.pinjaman.find(function (p) { return p.id === b.dataset.ubahP; })); }; });
       U.$$('[data-detail-h]', root).forEach(function (b) { b.onclick = function () { Forms.detailHutang(S.boot.hutang.find(function (h) { return h.id === b.dataset.detailH; })); }; });
     }
   };
@@ -527,14 +554,23 @@
   function kartuPinjam(p) {
     const pct = p.nominal ? p.terbayar / p.nominal * 100 : 0;
     const keP = p.ke === 'Pribadi';
-    return '<div class="card"><div class="flow"><span class="w">' + U.DOMPET_LABEL[p.dari] + '</span><span class="arr">' + ic('arrowRight', 'sm') + '</span><span class="w to">' + U.DOMPET_LABEL[p.ke] + '</span>' +
-      '<span class="pill ' + (keP ? 'p-info' : 'p-hampir') + '" style="margin-left:auto">' + (keP ? 'Kewajiban mengembalikan' : 'Talangan (piutang)') + '</span></div>' +
+    const tanpaKas = (p.dari !== 'Pribadi' && !p.kelompokDari) || (p.ke !== 'Pribadi' && !p.kelompokKe);
+    return '<div class="card"><div class="flow"><span class="w">' + e(p.kasDari || U.DOMPET_LABEL[p.dari]) + '</span><span class="arr">' + ic('arrowRight', 'sm') + '</span><span class="w to">' + e(p.kasKe || U.DOMPET_LABEL[p.ke]) + '</span>' +
+      '<span class="pill ' + (keP ? 'p-info' : 'p-hampir') + '" style="margin-left:auto">' + (keP ? 'Kewajiban mengembalikan' : 'Talangan antar dana') + '</span></div>' +
+      (tanpaKas ? '<div class="note warn" style="margin-top:12px">' + ic('alert') + '<div style="flex:1">Kas asal/tujuan belum dipilih, jadi saldo per anggaran belum tepat.</div><button class="btn btn-sm btn-sec" data-ubah-p="' + p.id + '">Lengkapi</button></div>' : '') +
       '<div class="row" style="margin-top:16px"><div><div class="eyebrow">Nominal pinjaman</div><div class="big-amt num">' + U.rp(p.nominal) + '</div></div><span style="margin-left:auto">' + sisaHariPill(p.jatuhTempo) + '</span></div>' +
       '<div class="kv"><span>Alasan</span><b>' + e(p.alasan || '-') + '</b><span>Tanggal pinjam</span><b>' + e(U.hijriLabel(p.tanggal)) + ' · ' + U.masehiPendek(p.tanggal) + '</b><span>Jatuh tempo</span><b>' + (p.jatuhTempo ? e(U.hijriLabel(p.jatuhTempo)) + ' · ' + U.masehiPendek(p.jatuhTempo) : '-') + '</b></div>' +
       '<div class="row small"><span class="muted">Status pelunasan</span><b class="num" style="margin-left:auto">' + U.rp(p.terbayar) + ' / ' + U.rp(p.nominal) + ' (' + Math.round(pct) + '%)</b></div><div style="margin:8px 0 6px">' + UI.bar(pct, 'navy') + '</div>' +
       '<div class="row small"><span class="muted">Sisa yang belum dikembalikan</span><b class="out num" style="margin-left:auto">' + U.rp(p.sisa) + '</b></div>' +
       '<div class="row" style="margin-top:16px;gap:8px"><button class="btn btn-sec btn-sm" data-bayar-p="' + p.id + '">' + ic('banknote', 'sm') + 'Bayar Sebagian</button><button class="btn btn-gold btn-sm" data-bayar-p="' + p.id + '" data-full="1">' + ic('checkCircle', 'sm') + 'Lunasi Sekarang</button>' +
       '<button class="link" style="margin-left:auto" data-detail-p="' + p.id + '">Rincian' + ic('chevronRight', 'sm') + '</button></div></div>';
+  }
+  function kartuPiutang(x) {
+    const pct = x.nominal ? x.terbayar / x.nominal * 100 : 0;
+    return '<div class="card"><div class="row"><span class="ic-tile t-em">' + ic('handCoins') + '</span><div style="min-width:0"><b style="font-size:16px">' + e(x.nama) + '</b><div class="small muted">Dari ' + e(x.kas) + ' · sejak ' + U.hijriLabel(x.tanggal) + '</div></div><span style="margin-left:auto">' + sisaHariPill(x.jatuhTempo) + '</span></div>' +
+      '<div style="margin-top:14px"><div class="eyebrow">Belum kembali</div><div class="big-amt in num">' + U.rp(x.sisa) + '</div><div class="small muted">dari ' + U.rp(x.nominal) + (x.catatan ? ' · ' + e(x.catatan) : '') + '</div></div>' +
+      '<div style="margin:12px 0 6px">' + UI.bar(pct, 'em') + '</div><div class="small muted">Sudah kembali ' + U.rp(x.terbayar) + ' (' + Math.round(pct) + '%)</div>' +
+      '<div class="row" style="margin-top:16px;gap:8px"><button class="btn btn-gold btn-sm" data-terima-r="' + x.id + '">' + ic('arrowDown', 'sm') + 'Terima Pembayaran</button><button class="link" style="margin-left:auto" data-detail-r="' + x.id + '">Rincian' + ic('chevronRight', 'sm') + '</button></div></div>';
   }
   function kartuHutang(h) {
     const pct = h.nominal ? h.terbayar / h.nominal * 100 : 0;
@@ -770,13 +806,20 @@
         '<div class="field"><label class="label">Model Konsultan AI <span class="hint">lebih cermat untuk analisis &amp; saran</span></label><div class="row"><input class="input" id="aiModelK" value="' + e(ai.modelKonsultan || 'gemini-3.6-flash') + '"><button class="btn btn-sec" id="aiModelKSimpan">Simpan model</button></div></div>' +
         '<div class="note info" style="margin-top:12px">' + ic('sparkles') + '<div>Konsultasi &amp; catatan pengetahuan ada di menu <b>Konsultan AI</b>. <button class="link" id="aiKeKonsultan">Buka ' + ic('arrowRight', 'sm') + '</button></div></div>' +
         (ai.adaKunci ? '<div class="row" style="justify-content:flex-end;margin-top:12px"><button class="btn btn-sm btn-danger-out" id="aiHapus">' + ic('trash', 'sm') + 'Hapus API key</button></div>' : '') + '</div>' +
+        '<div class="card" style="margin-top:22px"><div class="card-head"><span class="ic-tile t-navy">' + ic('scale') + '</span><div><h3>DeepSeek</h3><div class="small muted">Dipakai untuk analisis selisih di <b>Cocokkan Saldo</b> (data dikirim ringkas agar hemat token). Bila DeepSeek gagal, otomatis pindah ke Gemini.</div></div>' +
+        '<span class="pill ' + (ai.adaDeepseek ? 'p-aman' : 'p-mute') + '" style="margin-left:auto">' + (ai.adaDeepseek ? 'Aktif' : 'Belum aktif') + '</span></div>' +
+        '<div class="field"><label class="label">API key DeepSeek <span class="hint">dari platform.deepseek.com · disimpan aman di server</span></label>' +
+        '<div class="row"><input class="input" id="dsKey" type="password" autocomplete="off" placeholder="' + (ai.adaDeepseek ? '•••••••• (tersimpan) — isi untuk mengganti' : 'Tempel API key di sini') + '"><button class="btn btn-gold" id="dsSimpan">' + ic('save') + 'Simpan &amp; tes</button></div></div>' +
+        '<div class="field"><label class="label">Model <span class="hint">deepseek-chat = hemat; deepseek-reasoner = lebih teliti tapi lebih boros</span></label><div class="row"><input class="input" id="dsModel" value="' + e(ai.modelDeepseek || 'deepseek-chat') + '"><button class="btn btn-sec" id="dsModelSimpan">Simpan model</button></div></div>' +
+        '<div class="note warn" style="margin-top:12px">' + ic('shield') + '<div>Ringkasan transaksi (tanggal, nominal, keterangan singkat) dikirim ke server DeepSeek saat Anda menekan tombol analisis AI.</div></div>' +
+        (ai.adaDeepseek ? '<div class="row" style="justify-content:flex-end;margin-top:12px"><button class="btn btn-sm btn-danger-out" id="dsHapus">' + ic('trash', 'sm') + 'Hapus API key</button></div>' : '') + '</div>' +
         '<div class="card" style="margin-top:22px"><div class="card-head"><span class="ic-tile t-navy">' + ic('send') + '</span><div><h3>Jarvis (Telegram)</h3><div class="small muted">Jarvis boleh membaca ringkasan &amp; mencatat transaksi. Tidak bisa menghapus, mengubah anggaran, atau pengaturan.</div></div>' +
         '<span class="pill ' + (ai.agen.aktif ? 'p-aman' : 'p-mute') + '" style="margin-left:auto">' + (ai.agen.aktif ? 'Tersambung' : 'Belum') + '</span></div>' +
         (ai.agen.aktif ? '<div class="set-row"><div class="txt"><b>Kunci dibuat</b><small>' + tgl(ai.agen.dibuat) + ' · terakhir dipakai ' + tgl(ai.agen.terakhir) + '</small></div></div>' : '') +
         '<div class="row btn-row" style="justify-content:flex-end;gap:10px;margin-top:14px">' + (ai.agen.aktif ? '<button class="btn btn-danger-out" id="agCabut">' + ic('xCircle', 'sm') + 'Cabut kunci</button>' : '') +
         '<button class="btn btn-navy" id="agBuat">' + ic('key') + (ai.agen.aktif ? 'Buat kunci baru' : 'Buat kunci Jarvis') + '</button></div></div>';
     }
-    return '<div class="card"><div class="center" style="padding:10px 0 16px"><img src="assets/logo-mark.png" alt="" style="width:84px;margin:0 auto 10px"><h2 style="margin:0">Safe<span style="color:var(--amber-ink)">Money</span></h2><div class="muted small">Versi 1.4.1 · Frontend GitHub Pages + Google Apps Script</div></div>' +
+    return '<div class="card"><div class="center" style="padding:10px 0 16px"><img src="assets/logo-mark.png" alt="" style="width:84px;margin:0 auto 10px"><h2 style="margin:0">Safe<span style="color:var(--amber-ink)">Money</span></h2><div class="muted small">Versi 1.5.0 · Frontend GitHub Pages + Google Apps Script</div></div>' +
       '<div class="set-row"><div class="txt"><b>Data tersimpan di</b><small>Google Sheets "SafeMoney_DB" & folder Drive "SafeMoney" milik Anda</small></div></div>' +
       '<div class="set-row"><div class="txt"><b>Lupa PIN?</b><small>Jalankan fungsi resetPin() di editor Apps Script, lalu buat PIN baru di aplikasi.</small></div></div>' +
       '<div class="set-row"><div class="txt"><b>Muat ulang data</b><small>Ambil data terbaru dari server</small></div><button class="btn btn-sm btn-sec" id="reload">' + ic('refresh', 'sm') + 'Muat ulang</button></div>' +
@@ -836,6 +879,17 @@
       U.$('#aiModelSimpan', root).onclick = function () { simpan(this, { __aksi: 'simpanPengaturan', d: { gemini_model: U.$('#aiModel', root).value.trim() } }, 'Model disimpan.'); };
       U.$('#aiModelKSimpan', root).onclick = function () { simpan(this, { __aksi: 'simpanPengaturan', d: { gemini_model_konsultan: U.$('#aiModelK', root).value.trim() } }, 'Model konsultan disimpan.'); };
       U.$('#aiKeKonsultan', root).onclick = function () { App.go('konsultan'); };
+      U.$('#dsSimpan', root).onclick = function () {
+        const k = U.$('#dsKey', root).value.trim();
+        if (!k) return UI.toast('Tempel API key DeepSeek dulu.', 'error');
+        simpan(this, { __aksi: 'simpanKunciAI', d: { penyedia: 'deepseek', apiKey: k } }, 'API key DeepSeek tersimpan & berhasil dites.');
+      };
+      U.$('#dsModelSimpan', root).onclick = function () { simpan(this, { __aksi: 'simpanPengaturan', d: { deepseek_model: U.$('#dsModel', root).value.trim() } }, 'Model DeepSeek disimpan.'); };
+      const dh = U.$('#dsHapus', root);
+      if (dh) dh.onclick = async function () {
+        if (!(await UI.confirm({ title: 'Hapus API key DeepSeek?', text: 'Analisis AI akan memakai Gemini saja.', ok: 'Hapus' }))) return;
+        simpan(dh, { __aksi: 'simpanKunciAI', d: { penyedia: 'deepseek', hapus: true } }, 'API key DeepSeek dihapus.');
+      };
       const hp = U.$('#aiHapus', root);
       if (hp) hp.onclick = async function () {
         if (!(await UI.confirm({ title: 'Hapus API key?', text: 'Fitur baca nota akan nonaktif sampai key diisi lagi.', ok: 'Hapus' }))) return;

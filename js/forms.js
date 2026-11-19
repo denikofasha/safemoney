@@ -349,6 +349,7 @@
   // ============================================================
   F.detailTransaksi = function (t) {
     const i = UI.trxIcon(t);
+    const otomatis = t.refTipe === 'penyesuaian' || t.refTipe === 'piutang';
     const tgt = t.idTarget && S.boot.target.find(function (x) { return x.id === t.idTarget; });
     const m = UI.modal({
       title: t.keterangan || t.subkategori || t.kategori || t.sumber || 'Transaksi', icon: i.ik, tone: i.tone, sub: U.DOMPET_LABEL[t.dompet] + ' · ' + t.jenis,
@@ -360,9 +361,11 @@
         (t.dompet !== 'Pribadi' ? '<span>' + (t.dompet === 'Pondok' ? 'Anggaran' : 'Kepanitiaan') + '</span><b>' + e(U.namaKelompok(t.idKelompok) || '— belum dikelompokkan') + '</b>' : '') + (t.refTipe === 'hutang' ? '<span>Jenis</span><b>Pembayaran hutang</b>' : '') + '<span>ID</span><b class="small">' + e(t.id) + '</b></div>' +
         (t.adaBukti ? '<button class="btn btn-sec btn-block" id="dBukti">' + ic('image') + 'Lihat bukti / nota</button>' :
           t.jenis === 'Pengeluaran' || t.dompet !== 'Pribadi' ? '<label class="dropzone" style="cursor:pointer">' + ic('upload') + '<span id="dUpT">' + (t.dompet === 'Pondok' ? 'Belum ada nota — unggah sekarang' : 'Unggah bukti (opsional)') + '</span><input type="file" id="dUp" accept="image/*,application/pdf" hidden></label>' : ''),
-      foot: '<button class="btn btn-danger-out" id="dDel">' + ic('trash') + 'Hapus</button><button class="btn btn-navy" id="dEdit">' + ic('edit') + 'Ubah</button>'
+      foot: '<button class="btn btn-danger-out" id="dDel">' + ic('trash') + 'Hapus</button>' + (otomatis ? '' : '<button class="btn btn-navy" id="dEdit">' + ic('edit') + 'Ubah</button>')
     });
     const vb = m.$('#dBukti'); if (vb) vb.onclick = function () { F.lihatBukti(t.idBukti); };
+    if (otomatis) m.$('.m-body').insertAdjacentHTML('beforeend', '<div class="note info" style="margin-top:12px">' + ic('info') + '<div>' + (t.refTipe === 'piutang' ? 'Catatan otomatis dari piutang yang diikhlaskan.' : 'Catatan otomatis <b>Penyesuaian (selisih kas)</b> dari Cocokkan Saldo — tidak memengaruhi pos anggaran.') + ' Tidak bisa diubah; hapus bila keliru.</div></div>');
+    if (t.refTipe === 'pinjaman') m.$('.m-body').insertAdjacentHTML('beforeend', '<div class="note info" style="margin-top:12px">' + ic('swap') + '<div>Pengeluaran ini dibayar dengan uang pinjaman antar dana (dicatat bersamaan).</div></div>');
     const up = m.$('#dUp');
     if (up) up.onchange = async function () {
       const f = up.files[0]; if (!f) return;
@@ -370,7 +373,7 @@
       try { const bk = await U.bacaBukti(f); await API.call('unggahBukti', { id: t.id, bukti: { mime: bk.mime, data: bk.data } }); UI.toast('Bukti tersimpan di Google Drive.'); m.close(); await App.refresh(true); }
       catch (err) { m.$('#dUpT').textContent = err.message; }
     };
-    m.$('#dEdit').onclick = function () { m.close(); F.transaksi(t); };
+    const de = m.$('#dEdit'); if (de) de.onclick = function () { m.close(); F.transaksi(t); };
     m.$('#dDel').onclick = async function () {
       const ok = await UI.confirm({ title: 'Hapus transaksi ini?', text: 'Saldo dan anggaran dihitung ulang. Data tetap tersimpan di riwayat audit (tidak benar-benar dihapus).', ok: 'Hapus', icon: 'trash' });
       if (!ok) return;
@@ -411,19 +414,44 @@
   // ============================================================
   // PINJAM ANTAR DANA
   // ============================================================
-  F.pinjam = function () {
+  /** Daftar anggaran pondok / kepanitiaan terop untuk memilih kas asal/tujuan. */
+  function daftarKas(dompet) {
+    return (S.boot.kelompokDana || []).filter(function (k) { return k.dompet === dompet && !k.tanpa; })
+      .sort(function (a, c) { return (a.status === 'Aktif' ? 0 : 1) - (c.status === 'Aktif' ? 0 : 1) || c.saldo - a.saldo; });
+  }
+  function kasField(id, dompet, sel, label, wajib) {
+    if (dompet === 'Pribadi') return '';
+    const ks = daftarKas(dompet);
+    if (!ks.length) return '<div class="small muted" style="margin-top:6px">Belum ada ' + (dompet === 'Pondok' ? 'anggaran pondok' : 'kepanitiaan') + ' — uang dihitung sebagai kas umum ' + U.DOMPET_LABEL[dompet] + '.</div>';
+    const nm = dompet === 'Pondok' ? 'anggaran' : 'kepanitiaan';
+    return '<div class="field" style="margin-top:10px"><label class="label">' + ic(dompet === 'Pondok' ? 'landmark' : 'users', 'sm') + ' ' + label + (wajib ? ' <span class="req">*</span>' : ' <span class="hint">opsional</span>') + '</label>' +
+      '<select class="select" id="' + id + '"><option value="">— ' + (wajib ? 'Pilih ' + nm : 'Kas umum (tanpa ' + nm + ')') + ' —</option>' +
+      ks.map(function (k) { return '<option value="' + k.id + '" ' + (k.id === sel ? 'selected' : '') + '>' + e(k.nama) + ' · sisa ' + U.rp(k.saldo) + (k.status === 'Selesai' ? ' (selesai)' : '') + '</option>'; }).join('') + '</select></div>';
+  }
+  function kasSaldo(dompet, idKel) {
+    if (dompet === 'Pribadi' || !idKel) return null;
+    const k = daftarKas(dompet).find(function (x) { return x.id === idKel; });
+    return k ? k.saldo : null;
+  }
+
+  F.pinjam = function (pre) {
+    pre = pre || {};
     const b = S.boot;
+    const st = { dari: pre.dari || 'Pondok', ke: pre.ke || 'Pribadi', kDari: pre.kelompokDari || '', kKe: pre.kelompokKe || '', pakai: false, pos: '', katW: '' };
+    if (st.dari === st.ke) st.ke = st.dari === 'Pribadi' ? 'Pondok' : 'Pribadi';
     const opt = function (sel) { return ['Pribadi', 'Pondok', 'Terop'].map(function (d) { return '<option value="' + d + '" ' + (d === sel ? 'selected' : '') + '>' + U.DOMPET_LABEL[d] + ' (saldo ' + U.rp(b.saldo[d]) + ')</option>'; }).join(''); };
     const jt = b.periode.id === b.periodeIni ? b.periode.akhir : (U.periodOf(b.hariIni) || b.periode).akhir;
     const m = UI.modal({
       title: 'Pinjam Antar Dana', icon: 'swap', tone: 't-gold', sub: 'Tidak dihitung sebagai pemasukan',
       body: scanBox('pj', 'Baca foto bukti otomatis', 'Foto transfer / kuitansi / catatan serah terima — AI mengisi nominal &amp; tanggal.') +
-        '<div class="grid g-2" style="gap:12px"><div class="field"><label class="label">Dari dompet (sumber)</label><select class="select" id="pjDari">' + opt('Terop') + '</select></div>' +
-        '<div class="field" style="margin-top:0"><label class="label">Ke dompet (penerima)</label><select class="select" id="pjKe">' + opt('Pribadi') + '</select></div></div>' +
+        '<div class="grid g-2" style="gap:12px"><div class="field"><label class="label">Dari dompet (sumber)</label><select class="select" id="pjDari">' + opt(st.dari) + '</select><div id="pjKasDari"></div></div>' +
+        '<div class="field"><label class="label">Ke dompet (penerima)</label><select class="select" id="pjKe">' + opt(st.ke) + '</select><div id="pjKasKe"></div></div></div>' +
         '<div class="note info" style="margin-top:12px" id="pjInfo"></div>' +
-        '<div style="margin-top:14px">' + amountField('pjNom', 0, 'Nominal pinjaman') + '</div>' +
-        '<div class="field"><label class="label">Alasan / keperluan <span class="req">*</span></label><input class="input" id="pjAlasan" placeholder="Contoh: berobat, kebutuhan mendesak"></div>' +
-        '<div class="grid g-2" style="gap:12px">' + dateField('pjTgl', b.hariIni, 'Tanggal pinjam') + '<div style="margin-top:14px">' + dateField('pjJt', jt, 'Jatuh tempo') + '</div></div>' +
+        '<div style="margin-top:14px">' + amountField('pjNom', pre.nominal || 0, 'Nominal pinjaman') + '</div>' +
+        '<div class="field"><label class="label">Alasan / keperluan <span class="req">*</span></label><input class="input" id="pjAlasan" placeholder="Contoh: bayar langganan Claude, berobat" value="' + e(pre.alasan || '') + '"></div>' +
+        '<div class="set-row" style="margin-top:12px"><div class="txt"><b>Langsung dipakai</b><small>Sekalian catat pengeluarannya (mis. uang pinjaman langsung habis untuk bayar sesuatu)</small></div><label class="switch"><input type="checkbox" id="pjPakai"><span></span></label></div>' +
+        '<div id="pjPakaiBox"></div>' +
+        '<div class="grid g-2" style="gap:12px">' + dateField('pjTgl', pre.tanggal || b.hariIni, 'Tanggal pinjam') + '<div style="margin-top:14px">' + dateField('pjJt', jt, 'Jatuh tempo') + '</div></div>' +
         buktiField('pjBukti', 'Foto bukti (catatan serah terima, transfer)'),
       foot: '<button class="btn btn-sec" data-close>Batal</button><button class="btn btn-navy" id="pjSave">' + ic('save') + 'Simpan Pinjaman</button>'
     });
@@ -432,23 +460,86 @@
     const pjBukti = bindBukti(m, 'pjBukti');
     bindScanBukti(m, { id: 'pj', konteks: 'pinjaman', bukti: pjBukti, nominal: 'pjNom', tanggal: 'pjTgl',
       isi: function (r) { const a = m.$('#pjAlasan'); if (!a.value.trim() && r.keterangan) a.value = r.keterangan; } });
-    function info() {
-      const d = m.$('#pjDari').value, k = m.$('#pjKe').value, n = getNom();
-      const el = m.$('#pjInfo');
-      if (d === k) { el.className = 'note danger'; el.innerHTML = ic('alert') + '<div>Dompet sumber dan penerima tidak boleh sama.</div>'; return; }
-      if (n > b.saldo[d]) { el.className = 'note danger'; el.innerHTML = ic('alert') + '<div>Nominal melebihi saldo ' + U.DOMPET_LABEL[d] + ' (' + U.rp(b.saldo[d]) + ').</div>'; return; }
-      el.className = 'note info'; el.innerHTML = ic('shield') + '<div>Saldo ' + U.DOMPET_LABEL[d] + ' berkurang, ' + U.DOMPET_LABEL[k] + ' bertambah. Tercatat sebagai kewajiban yang wajib dikembalikan.</div>';
+    function kas() {
+      m.$('#pjKasDari').innerHTML = kasField('pjKDari', st.dari, st.kDari, 'Diambil dari kas', true);
+      m.$('#pjKasKe').innerHTML = kasField('pjKKe', st.ke, st.kKe, 'Masuk ke kas', false);
+      const a = m.$('#pjKDari'), k = m.$('#pjKKe');
+      if (a) a.onchange = function () { st.kDari = a.value; info(); };
+      if (k) k.onchange = function () { st.kKe = k.value; };
     }
-    m.$('#pjDari').onchange = info; m.$('#pjKe').onchange = info; info();
+    function pakaiBox() {
+      const box = m.$('#pjPakaiBox');
+      if (!st.pakai) { box.innerHTML = ''; return; }
+      let h = '';
+      if (st.ke === 'Pribadi') {
+        h = '<div class="sect-title">Dipakai untuk pos</div><div class="choice-grid c2">' + U.POS.filter(function (k) { return k !== 'Tabungan'; }).map(function (k) {
+          return '<button class="choice ' + (st.pos === k ? 'on' : '') + '" data-pos="' + e(k) + '"><b>' + ic(U.POS_IKON[k], 'sm') + ' ' + U.POS_SINGKAT[k] + '</b><span class="chk">' + ic('checkCircle', 'sm') + '</span></button>';
+        }).join('') + '</div><input class="input" id="pjSub" style="margin-top:10px" placeholder="Subkategori, mis. Langganan Claude" maxlength="80">';
+      } else if (st.ke === 'Pondok') {
+        const ks = b.kategoriDompet.filter(function (k) { return k.dompet === 'Pondok' && k.aktif; });
+        if (!st.katW) st.katW = ks[0] ? ks[0].nama : 'Lainnya';
+        h = '<div class="field"><label class="label">Kategori pengeluaran Dana Pondok</label><select class="select" id="pjKatW">' + ks.map(function (k) { return '<option ' + (k.nama === st.katW ? 'selected' : '') + '>' + e(k.nama) + '</option>'; }).join('') + '</select></div>';
+      }
+      box.innerHTML = '<div class="pakai-box">' + h + '<input class="input" id="pjPakaiKet" style="margin-top:10px" placeholder="Keterangan (kosong = pakai alasan)" maxlength="300">' +
+        '<div class="small muted" style="margin-top:8px">' + ic('info', 'sm') + ' Tercatat sebagai pengeluaran ' + U.DOMPET_LABEL[st.ke] + ' sebesar nominal pinjaman.</div></div>';
+      m.$$('#pjPakaiBox [data-pos]').forEach(function (x) { x.onclick = function () { st.pos = x.dataset.pos; m.$$('#pjPakaiBox [data-pos]').forEach(function (c) { c.classList.toggle('on', c === x); }); }; });
+      const kw = m.$('#pjKatW'); if (kw) kw.onchange = function () { st.katW = kw.value; };
+    }
+    function info() {
+      const n = getNom(), el = m.$('#pjInfo');
+      if (st.dari === st.ke) { el.className = 'note danger'; el.innerHTML = ic('alert') + '<div>Dompet sumber dan penerima tidak boleh sama.</div>'; return; }
+      if (n > b.saldo[st.dari]) { el.className = 'note danger'; el.innerHTML = ic('alert') + '<div>Nominal melebihi saldo ' + U.DOMPET_LABEL[st.dari] + ' (' + U.rp(b.saldo[st.dari]) + ').</div>'; return; }
+      const sk = kasSaldo(st.dari, st.kDari);
+      if (sk != null && n > sk) { el.className = 'note warn'; el.innerHTML = ic('alert') + '<div>Nominal melebihi sisa kas ' + e(U.namaKelompok(st.kDari)) + ' (' + U.rp(sk) + '). Tetap boleh, tetapi kas itu akan minus.</div>'; return; }
+      el.className = 'note info'; el.innerHTML = ic('shield') + '<div>Saldo ' + U.DOMPET_LABEL[st.dari] + (st.kDari ? ' › ' + e(U.namaKelompok(st.kDari)) : '') + ' berkurang, ' + U.DOMPET_LABEL[st.ke] + ' bertambah. Tercatat sebagai kewajiban yang wajib dikembalikan.</div>';
+    }
+    m.$('#pjDari').onchange = function () { st.dari = this.value; st.kDari = ''; kas(); info(); };
+    m.$('#pjKe').onchange = function () { st.ke = this.value; st.kKe = ''; kas(); pakaiBox(); info(); };
+    m.$('#pjPakai').onchange = function () { st.pakai = this.checked; pakaiBox(); };
+    kas(); info();
     m.$('#pjSave').onclick = async function () {
-      const d = { dari: m.$('#pjDari').value, ke: m.$('#pjKe').value, nominal: getNom(), alasan: m.$('#pjAlasan').value.trim(), tanggal: m.$('#pjTgl').value, jatuhTempo: m.$('#pjJt').value };
+      const d = { dari: st.dari, ke: st.ke, nominal: getNom(), alasan: m.$('#pjAlasan').value.trim(), tanggal: m.$('#pjTgl').value, jatuhTempo: m.$('#pjJt').value,
+        kelompokDari: st.kDari, kelompokKe: st.kKe };
       if (d.dari === d.ke) return UI.toast('Dompet tidak boleh sama.', 'error');
       if (!d.nominal) return UI.toast('Isi nominal.', 'error');
       if (d.nominal > b.saldo[d.dari]) return UI.toast('Nominal melebihi saldo sumber.', 'error');
+      if (d.dari !== 'Pribadi' && daftarKas(d.dari).length && !d.kelompokDari) return UI.toast('Pilih kas asal uangnya (' + (d.dari === 'Pondok' ? 'anggaran pondok' : 'kepanitiaan') + ').', 'error');
       if (!d.alasan) return UI.toast('Isi alasan peminjaman.', 'error');
+      if (st.pakai) {
+        if (st.ke === 'Pribadi' && !st.pos) return UI.toast('Pilih pos anggaran pemakaiannya.', 'error');
+        d.pakai = { kategori: st.ke === 'Pribadi' ? st.pos : st.katW, subkategori: (m.$('#pjSub') || {}).value || '', keterangan: m.$('#pjPakaiKet').value.trim() };
+      }
       if (pjBukti.val) d.bukti = { mime: pjBukti.val.mime, data: pjBukti.val.data };
       UI.busy(this, true);
-      try { await API.call('simpanPinjaman', d); m.close(); UI.toast('Pinjaman tercatat. Pengingat jatuh tempo aktif.'); await App.refresh(true); }
+      try {
+        const r = await API.call('simpanPinjaman', d); m.close();
+        UI.toast(r.idTrx ? 'Pinjaman & pengeluarannya tercatat.' : 'Pinjaman tercatat. Pengingat jatuh tempo aktif.');
+        if (r.peringatan) App.tampilPeringatan(r.peringatan);
+        await App.refresh(true);
+        if (pre.onDone) pre.onDone();
+      } catch (err) { UI.toast(err.message, 'error'); UI.busy(this, false); }
+    };
+  };
+
+  /** Lengkapi / ubah keterangan pinjaman: kas asal & tujuan, alasan, jatuh tempo. */
+  F.ubahPinjaman = function (p) {
+    const m = UI.modal({
+      title: 'Ubah Pinjaman', icon: 'edit', tone: 't-gold', sub: e(U.DOMPET_LABEL[p.dari]) + ' → ' + e(U.DOMPET_LABEL[p.ke]) + ' · ' + U.rp(p.nominal),
+      body: kasField('upKDari', p.dari, p.kelompokDari, 'Diambil dari kas', true) + kasField('upKKe', p.ke, p.kelompokKe, 'Masuk ke kas', false) +
+        '<div class="field"><label class="label">Alasan</label><input class="input" id="upAlasan" value="' + e(p.alasan || '') + '"></div>' +
+        dateField('upJt', p.jatuhTempo || '', 'Jatuh tempo') +
+        '<div class="field"><label class="label">Catatan</label><input class="input" id="upCat" value="' + e(p.catatan || '') + '" placeholder="opsional"></div>' +
+        '<div class="note info" style="margin-top:12px">' + ic('info') + '<div>Nominal dan dompet tidak bisa diubah. Bila salah, batalkan lalu catat ulang.</div></div>',
+      foot: '<button class="btn btn-sec" data-close>Batal</button><button class="btn btn-gold" id="upSave">' + ic('save') + 'Simpan</button>'
+    });
+    bindDate(m, 'upJt');
+    m.$('#upSave').onclick = async function () {
+      const d = { id: p.id, alasan: m.$('#upAlasan').value.trim(), catatan: m.$('#upCat').value.trim(), jatuhTempo: m.$('#upJt').value };
+      if (m.$('#upKDari')) d.kelompokDari = m.$('#upKDari').value;
+      if (m.$('#upKKe')) d.kelompokKe = m.$('#upKKe').value;
+      if (!d.alasan) return UI.toast('Isi alasan.', 'error');
+      UI.busy(this, true);
+      try { await API.call('simpanPinjaman', d); m.close(); UI.toast('Pinjaman diperbarui.'); await App.refresh(true); }
       catch (err) { UI.toast(err.message, 'error'); UI.busy(this, false); }
     };
   };
@@ -482,19 +573,22 @@
   F.detailPinjaman = function (p) {
     const m = UI.modal({
       title: 'Rincian Pinjaman', icon: 'swap', tone: 't-gold', sub: e(p.id),
-      body: '<div class="flow"><span class="w">' + U.DOMPET_LABEL[p.dari] + '</span><span class="arr">' + ic('arrowRight', 'sm') + '</span><span class="w to">' + U.DOMPET_LABEL[p.ke] + '</span></div>' +
+      body: '<div class="flow"><span class="w">' + e(p.kasDari || U.DOMPET_LABEL[p.dari]) + '</span><span class="arr">' + ic('arrowRight', 'sm') + '</span><span class="w to">' + e(p.kasKe || U.DOMPET_LABEL[p.ke]) + '</span></div>' +
+        (p.idTrxPakai ? '<div class="note ok" style="margin:10px 0">' + ic('checkCircle') + '<div>Uang pinjaman ini langsung dipakai — pengeluarannya ikut tercatat.</div></div>' : '') +
         '<div class="kv"><span>Nominal</span><b class="num">' + U.rp(p.nominal) + '</b><span>Terbayar</span><b class="num in">' + U.rp(p.terbayar) + '</b><span>Sisa</span><b class="num out">' + U.rp(p.sisa) + '</b>' +
         '<span>Alasan</span><b>' + e(p.alasan || '-') + '</b><span>Tanggal</span><b>' + U.hijriLabel(p.tanggal) + '</b><span>Jatuh tempo</span><b>' + (p.jatuhTempo ? U.hijriLabel(p.jatuhTempo) + ' · ' + U.masehi(p.jatuhTempo) : '-') + '</b></div>' +
         (p.adaBukti ? '<button class="btn btn-sec btn-block" style="margin-top:12px" data-bk="' + p.idBukti + '">' + ic('image') + 'Lihat foto bukti pinjaman</button>' : '') +
         '<div class="sect-title">Riwayat pengembalian</div>' + (p.riwayat.length ? p.riwayat.map(function (r) {
           return '<div class="set-row"><span class="ic-tile t-em">' + ic('banknote') + '</span><div class="txt"><b class="num">' + U.rp(r.nominal) + '</b><small>' + U.hijriLabel(r.tanggal) + ' · ' + e(r.catatan || '') + '</small></div>' + (r.adaBukti ? '<button class="btn btn-sm btn-ghost" data-bk="' + r.idBukti + '">' + ic('image', 'sm') + '</button>' : '') + '</div>';
         }).join('') : '<div class="small muted">Belum ada pengembalian.</div>'),
-      foot: (p.terbayar === 0 && p.status === 'Berjalan' ? '<button class="btn btn-danger-out" id="pjBatal">' + ic('xCircle') + 'Batalkan Pinjaman</button>' : '') + '<button class="btn btn-navy" data-close>Tutup</button>'
+      foot: (p.terbayar === 0 && p.status === 'Berjalan' ? '<button class="btn btn-danger-out" id="pjBatal">' + ic('xCircle') + 'Batalkan</button>' : '') +
+        (p.status === 'Berjalan' ? '<button class="btn btn-sec" id="pjUbah">' + ic('edit') + 'Ubah</button>' : '') + '<button class="btn btn-navy" data-close>Tutup</button>'
     });
     m.$$('[data-bk]').forEach(function (x) { x.onclick = function () { F.lihatBukti(x.dataset.bk); }; });
+    const ub = m.$('#pjUbah'); if (ub) ub.onclick = function () { m.close(); F.ubahPinjaman(p); };
     const bt = m.$('#pjBatal');
     if (bt) bt.onclick = async function () {
-      const ok = await UI.confirm({ title: 'Batalkan pinjaman?', text: 'Gunakan jika pinjaman salah catat. Saldo kedua dompet kembali seperti semula.', ok: 'Batalkan' });
+      const ok = await UI.confirm({ title: 'Batalkan pinjaman?', text: 'Gunakan jika pinjaman salah catat. Saldo kedua dompet kembali seperti semula' + (p.idTrxPakai ? ', dan pengeluaran yang dicatat bersamanya ikut dihapus.' : '.'), ok: 'Batalkan' });
       if (!ok) return;
       try { await API.call('batalPinjaman', { id: p.id }); m.close(); UI.toast('Pinjaman dibatalkan.'); await App.refresh(true); } catch (err) { UI.toast(err.message, 'error'); }
     };
@@ -583,6 +677,140 @@
     });
     m.$('#hdEdit').onclick = function () { m.close(); F.hutang(h); };
     m.$$('[data-bk]').forEach(function (x) { x.onclick = function () { F.lihatBukti(x.dataset.bk); }; });
+  };
+
+  // ============================================================
+  // PIUTANG — uang kita yang dipinjam orang lain
+  // ============================================================
+  F.piutang = function (x, pre) {
+    x = x || {}; pre = pre || {};
+    const b = S.boot, edit = !!x.id;
+    const st = { dompet: x.dompet || pre.dompet || 'Pribadi', kel: x.idKelompok || '' };
+    const m = UI.modal({
+      title: edit ? 'Ubah Piutang' : 'Catat Piutang', icon: 'handCoins', tone: 't-em', sub: 'Uang yang dipinjam orang lain — bukan pengeluaran',
+      body: (edit ? '' : scanBox('pt', 'Baca foto bukti otomatis', 'Foto transfer / kuitansi / catatan — AI mengisi nominal, tanggal &amp; nama.')) +
+        '<div class="field"><label class="label">Nama peminjam <span class="req">*</span></label><input class="input" id="ptNama" placeholder="Contoh: Ust. Ali" value="' + e(x.nama || '') + '"></div>' +
+        '<div class="sect-title">Uangnya diambil dari</div>' +
+        '<div class="choice-grid c3" id="ptDompet">' + ['Pribadi', 'Pondok', 'Terop'].map(function (d) {
+          return '<button class="choice wallet ' + (st.dompet === d ? 'on' : '') + '" data-d="' + d + '" ' + (edit ? 'disabled' : '') + '><b>' + U.DOMPET_LABEL[d] + '</b><small class="num">' + U.rp(b.saldo[d]) + '</small><span class="chk">' + ic('checkCircle', 'sm') + '</span></button>';
+        }).join('') + '</div><div id="ptKas"></div><div id="ptAmanah"></div>' +
+        '<div style="margin-top:14px">' + amountField('ptNom', x.nominal || pre.nominal, 'Nominal dipinjamkan') + '</div>' +
+        '<div class="grid g-2" style="gap:12px">' + dateField('ptTgl', x.tanggal || b.hariIni, 'Tanggal') + '<div style="margin-top:14px">' + dateField('ptJt', x.jatuhTempo || '', 'Janji kembali (opsional)') + '</div></div>' +
+        '<div class="field"><label class="label">Catatan / keperluan</label><input class="input" id="ptCat" value="' + e(x.catatan || '') + '" placeholder="Contoh: untuk berobat anaknya"></div>' +
+        buktiField('ptBukti', x.adaBukti ? 'Ganti foto bukti' : 'Foto bukti (kuitansi, transfer, chat)'),
+      foot: '<button class="btn btn-sec" data-close>Batal</button><button class="btn btn-gold" id="ptSave">' + ic('save') + 'Simpan Piutang</button>'
+    });
+    const getNom = bindAmount(m, 'ptNom'); bindDate(m, 'ptTgl'); bindDate(m, 'ptJt');
+    const ptBukti = bindBukti(m, 'ptBukti');
+    if (!edit) bindScanBukti(m, { id: 'pt', konteks: 'piutang', bukti: ptBukti, nominal: 'ptNom', tanggal: 'ptTgl',
+      isi: function (r) { const n = m.$('#ptNama'), c = m.$('#ptCat'); if (!n.value.trim() && r.pihak) n.value = r.pihak; if (!c.value.trim() && r.keterangan) c.value = r.keterangan; } });
+    function kas() {
+      m.$('#ptKas').innerHTML = kasField('ptKel', st.dompet, st.kel, 'Dari kas', true);
+      const k = m.$('#ptKel'); if (k) k.onchange = function () { st.kel = k.value; };
+      m.$('#ptAmanah').innerHTML = st.dompet === 'Pribadi' ? '' : '<div class="note warn" style="margin-top:10px">' + ic('shield') + '<div><b>Dana amanah.</b> Pastikan meminjamkan ' + U.DOMPET_LABEL[st.dompet] + ' sudah seizin yang berwenang, dan catat keperluannya.</div></div>';
+    }
+    m.$$('#ptDompet [data-d]').forEach(function (c) { c.onclick = function () { if (edit) return; st.dompet = c.dataset.d; st.kel = ''; m.$$('#ptDompet [data-d]').forEach(function (z) { z.classList.toggle('on', z === c); }); kas(); }; });
+    kas();
+    m.$('#ptSave').onclick = async function () {
+      const d = { id: x.id, nama: m.$('#ptNama').value.trim(), dompet: st.dompet, idKelompok: st.kel, nominal: getNom(), tanggal: m.$('#ptTgl').value, jatuhTempo: m.$('#ptJt').value, catatan: m.$('#ptCat').value.trim() };
+      if (!d.nama) return UI.toast('Isi nama peminjam.', 'error');
+      if (!d.nominal) return UI.toast('Isi nominal.', 'error');
+      if (st.dompet !== 'Pribadi' && daftarKas(st.dompet).length && !st.kel) return UI.toast('Pilih kas asal uangnya.', 'error');
+      if (!edit && d.nominal > b.saldo[st.dompet]) return UI.toast('Nominal melebihi saldo ' + U.DOMPET_LABEL[st.dompet] + '.', 'error');
+      if (ptBukti.val) d.bukti = { mime: ptBukti.val.mime, data: ptBukti.val.data };
+      UI.busy(this, true);
+      try { await API.call('simpanPiutang', d); m.close(); UI.toast(edit ? 'Piutang diperbarui.' : 'Piutang tercatat.'); S.pTab = 'piutang'; await App.refresh(true); if (pre.onDone) pre.onDone(); }
+      catch (err) { UI.toast(err.message, 'error'); UI.busy(this, false); }
+    };
+  };
+
+  F.terimaPiutang = function (x, nominal, onDone) {
+    const m = UI.modal({
+      title: 'Terima Pembayaran Piutang', icon: 'arrowDown', tone: 't-em', sub: e(x.nama) + ' · sisa ' + U.rp(x.sisa),
+      body: amountField('tpNom', nominal || x.sisa, 'Nominal yang diterima') +
+        '<div class="chips" style="margin-top:10px"><button class="chip" data-q="' + x.sisa + '">Lunas ' + U.rp(x.sisa) + '</button>' + (x.sisa >= 100000 ? '<button class="chip" data-q="' + Math.round(x.sisa / 2 / 1000) * 1000 + '">Setengah</button>' : '') + '</div>' +
+        dateField('tpTgl', S.boot.hariIni, 'Tanggal diterima') +
+        '<div class="field"><label class="label">Catatan</label><input class="input" id="tpCat" placeholder="opsional"></div>' + buktiField('tpBukti', 'Bukti transfer / kuitansi') +
+        '<div class="note ok" style="margin-top:12px">' + ic('info') + '<div>Uang kembali ke <b>' + e(x.kas) + '</b>.</div></div>',
+      foot: '<button class="btn btn-sec" data-close>Batal</button><button class="btn btn-gold" id="tpSave">' + ic('checkCircle') + 'Simpan</button>'
+    });
+    const getNom = bindAmount(m, 'tpNom'); bindDate(m, 'tpTgl');
+    const bukti = bindBukti(m, 'tpBukti');
+    m.$$('[data-q]').forEach(function (c) { c.onclick = function () { const el = m.$('#tpNom'); el.value = String(c.dataset.q); el.dispatchEvent(new Event('input')); }; });
+    m.$('#tpSave').onclick = async function () {
+      const n = getNom();
+      if (!n) return UI.toast('Isi nominal.', 'error');
+      if (n > x.sisa) return UI.toast('Melebihi sisa piutang (' + U.rp(x.sisa) + ').', 'error');
+      UI.busy(this, true);
+      try {
+        const r = await API.call('terimaPiutang', { id: x.id, nominal: n, tanggal: m.$('#tpTgl').value, catatan: m.$('#tpCat').value, bukti: bukti.val ? { mime: bukti.val.mime, data: bukti.val.data } : undefined });
+        m.close(); UI.toast(r.lunas ? 'Alhamdulillah, piutang lunas!' : 'Penerimaan tercatat.'); if (r.lunas) UI.confetti();
+        await App.refresh(true); if (onDone) onDone();
+      } catch (err) { UI.toast(err.message, 'error'); UI.busy(this, false); }
+    };
+  };
+
+  F.detailPiutang = function (x) {
+    const jalan = x.status === 'Berjalan';
+    const m = UI.modal({
+      title: 'Piutang ' + x.nama, icon: 'handCoins', tone: 't-em', sub: e(x.kas),
+      body: '<div class="kv"><span>Nominal</span><b class="num">' + U.rp(x.nominal) + '</b><span>Sudah kembali</span><b class="num in">' + U.rp(x.terbayar - x.diikhlaskan) + '</b>' +
+        (x.diikhlaskan ? '<span>Diikhlaskan</span><b class="num">' + U.rp(x.diikhlaskan) + '</b>' : '') + '<span>Sisa</span><b class="num out">' + U.rp(x.sisa) + '</b>' +
+        '<span>Dari</span><b>' + e(x.kas) + '</b><span>Tanggal</span><b>' + U.hijriLabel(x.tanggal) + '</b><span>Janji kembali</span><b>' + (x.jatuhTempo ? U.hijriLabel(x.jatuhTempo) + ' · ' + U.masehi(x.jatuhTempo) : '-') + '</b>' +
+        (x.catatan ? '<span>Catatan</span><b>' + e(x.catatan) + '</b>' : '') + '</div>' +
+        (x.adaBukti ? '<button class="btn btn-sec btn-block" style="margin-top:12px" data-bk="' + x.idBukti + '">' + ic('image') + 'Lihat foto bukti</button>' : '') +
+        '<div class="sect-title">Riwayat pengembalian</div>' + (x.riwayat.length ? x.riwayat.map(function (r) {
+          return '<div class="set-row"><span class="ic-tile ' + (r.ikhlas ? 't-violet' : 't-em') + '">' + ic(r.ikhlas ? 'heart' : 'banknote') + '</span><div class="txt"><b class="num">' + U.rp(r.nominal) + (r.ikhlas ? ' · diikhlaskan' : '') + '</b><small>' + U.hijriLabel(r.tanggal) + ' · ' + e(r.catatan || '') + '</small></div>' +
+            (r.adaBukti ? '<button class="btn btn-sm btn-ghost" data-bk="' + r.idBukti + '">' + ic('image', 'sm') + '</button>' : '') +
+            (!r.ikhlas ? '<button class="btn btn-sm btn-ghost" data-batal="' + r.id + '" title="Batalkan catatan ini">' + ic('x', 'sm') + '</button>' : '') + '</div>';
+        }).join('') : '<div class="small muted">Belum ada pengembalian.</div>'),
+      foot: (x.terbayar === 0 ? '<button class="btn btn-danger-out" id="pdDel">' + ic('trash') + 'Hapus</button>' : '') +
+        (jalan ? '<button class="btn btn-sec" id="pdIkhlas">' + ic('heart') + 'Ikhlaskan</button><button class="btn btn-sec" id="pdEdit">' + ic('edit') + 'Ubah</button><button class="btn btn-gold" id="pdTerima">' + ic('arrowDown') + 'Terima</button>' : '<button class="btn btn-navy" data-close>Tutup</button>')
+    });
+    m.$$('[data-bk]').forEach(function (b) { b.onclick = function () { F.lihatBukti(b.dataset.bk); }; });
+    m.$$('[data-batal]').forEach(function (b) {
+      b.onclick = async function () {
+        if (!(await UI.confirm({ title: 'Batalkan catatan penerimaan?', text: 'Gunakan bila salah catat. Sisa piutang bertambah lagi.', ok: 'Batalkan' }))) return;
+        try { await API.call('batalTerimaPiutang', { id: b.dataset.batal }); m.close(); UI.toast('Catatan dibatalkan.'); await App.refresh(true); } catch (err) { UI.toast(err.message, 'error'); }
+      };
+    });
+    const ed = m.$('#pdEdit'); if (ed) ed.onclick = function () { m.close(); F.piutang(x); };
+    const tr = m.$('#pdTerima'); if (tr) tr.onclick = function () { m.close(); F.terimaPiutang(x); };
+    const del = m.$('#pdDel');
+    if (del) del.onclick = async function () {
+      if (!(await UI.confirm({ title: 'Hapus catatan piutang?', text: x.nama + ' · ' + U.rp(x.nominal) + '. Saldo ' + x.kas + ' kembali seperti semula.', ok: 'Hapus' }))) return;
+      try { await API.call('hapusPiutang', { id: x.id }); m.close(); UI.toast('Piutang dihapus.'); await App.refresh(true); } catch (err) { UI.toast(err.message, 'error'); }
+    };
+    const ik = m.$('#pdIkhlas');
+    if (ik) ik.onclick = async function () {
+      const pribadi = x.dompet === 'Pribadi';
+      const ok = await UI.confirm({ title: 'Ikhlaskan sisa ' + U.rp(x.sisa) + '?', icon: 'heart', tone: 't-violet', btn: 'btn-navy', ok: 'Ikhlaskan',
+        html: pribadi ? 'Sisa piutang dianggap <b>sedekah</b> dan dicatat di pos Sedekah bulan ini. Semoga menjadi amal jariyah.'
+          : '<b>Ini dana amanah (' + e(x.kas) + ').</b> Sisa piutang akan dicatat sebagai pengeluaran kas tersebut. Pastikan sudah disetujui pihak yang berwenang.' });
+      if (!ok) return;
+      try { const r = await API.call('ikhlasPiutang', { id: x.id }); m.close(); UI.toast('Piutang diikhlaskan.'); if (r.peringatan) App.tampilPeringatan(r.peringatan); await App.refresh(true); }
+      catch (err) { UI.toast(err.message, 'error'); }
+    };
+  };
+
+  /** Rincian "uang di tangan" vs "milik sendiri" untuk satu dompet. */
+  F.posisi = function (dompet) {
+    const p = S.boot.posisi && S.boot.posisi[dompet];
+    if (!p) return;
+    const baris = function (r) {
+      const plus = r.tipe === 'pinjamKeluar' || r.tipe === 'piutang';
+      return '<div class="set-row"><span class="ic-tile ' + (plus ? 't-em' : 't-coral') + '">' + ic(plus ? 'arrowDown' : 'arrowUp') + '</span><div class="txt"><b>' + e(r.label) + '</b><small>' + (plus ? 'uang Anda yang belum kembali' : 'wajib dikembalikan') + '</small></div><b class="num ' + (plus ? 'in' : 'out') + '">' + (plus ? '+ ' : '− ') + U.rp(r.nominal) + '</b></div>';
+    };
+    const m = UI.modal({
+      title: 'Uang ' + U.DOMPET_LABEL[dompet] + ' sebenarnya', icon: 'wallet', tone: 't-navy',
+      body: '<div class="kv"><span>Uang di tangan (tercatat)</span><b class="num">' + U.rp(p.diTangan) + '</b></div>' +
+        (p.rincian.length ? p.rincian.map(baris).join('') : '<div class="small muted" style="margin:10px 0">Tidak ada pinjaman, hutang, atau piutang berjalan.</div>') +
+        '<div class="kv" style="border-top:2px solid var(--border);padding-top:10px;margin-top:6px"><span><b>Milik Anda sendiri</b></span><b class="num" style="font-size:18px">' + U.rp(p.milik) + '</b></div>' +
+        '<div class="note info" style="margin-top:12px">' + ic('info') + '<div><b>Uang di tangan</b> sudah termasuk pinjaman dari dana lain/orang lain. <b>Milik sendiri</b> = uang di tangan − yang wajib dikembalikan + uang Anda yang masih di orang lain. Bila uang nyata tidak sama dengan "uang di tangan", pakai <b>Cocokkan Saldo</b>.</div></div>',
+      foot: '<button class="btn btn-sec" id="psPin">' + ic('swap') + 'Pinjam & Piutang</button><button class="btn btn-gold" id="psCocok">' + ic('scale') + 'Cocokkan Saldo</button>'
+    });
+    m.$('#psPin').onclick = function () { m.close(); App.go('pinjaman'); };
+    m.$('#psCocok').onclick = function () { m.close(); App.go('cocokkan'); };
   };
 
   // ============================================================

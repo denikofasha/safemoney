@@ -13,7 +13,8 @@
     { id: 'anggaran', label: 'Anggaran', ik: 'pie' },
     { id: 'pondok', label: 'Dana Pondok', ik: 'building' },
     { id: 'terop', label: 'Dana Terop', ik: 'tent' },
-    { id: 'pinjaman', label: 'Pinjaman & Hutang', ik: 'swap' },
+    { id: 'pinjaman', label: 'Pinjam & Piutang', ik: 'swap' },
+    { id: 'cocokkan', label: 'Cocokkan Saldo', ik: 'scale' },
     { id: 'target', label: 'Target', ik: 'flag' },
     { id: 'laporan', label: 'Laporan', ik: 'chart' },
     { id: 'konsultan', label: 'Konsultan AI', ik: 'sparkles' },
@@ -163,7 +164,8 @@
         item('anggaran', 'pie', 'Anggaran', 't-navy', 'Atur persen 5 pos') +
         item('pondok', 'building', 'Dana Pondok', 't-em', b.belumNota.length ? b.belumNota.length + ' belum ada nota' : 'Kas amanah') +
         item('terop', 'tent', 'Dana Terop', 't-gold', 'Kas sewa terop') +
-        item('pinjaman', 'swap', 'Pinjaman & Hutang', 't-coral', 'Kewajiban berjalan') +
+        item('pinjaman', 'swap', 'Pinjam & Piutang', 't-coral', 'Hutang, piutang, pinjam dana') +
+        item('cocokkan', 'scale', 'Cocokkan Saldo', 't-gold', 'Uang nyata vs catatan') +
         item('laporan', 'chart', 'Laporan', 't-navy', 'Grafik & PDF') +
         item('konsultan', 'sparkles', 'Konsultan AI', 't-violet', 'Tanya & minta saran') +
         item('pengaturan', 'settings', 'Pengaturan', 't-navy', 'PIN, kutipan, kalender') +
@@ -197,7 +199,7 @@
 
   function panelNotif() {
     const list = S.boot.notifikasi;
-    const ikon = { jatuh_tempo: 'clock', anggaran: 'pie', nota: 'paperclip' };
+    const ikon = { jatuh_tempo: 'clock', anggaran: 'pie', nota: 'paperclip', cocok: 'scale', sedekah: 'heart' };
     const m = UI.modal({
       title: 'Pusat Pemberitahuan', icon: 'bell', sub: list.length ? list.length + ' pemberitahuan' : 'Semua aman',
       body: list.length ? list.map(function (n, i) {

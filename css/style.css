@@ -896,3 +896,59 @@ html.hal-konsultan .fab { display: none; }
 .lab-merek{white-space:nowrap;min-width:0}
 .lab-merek small{overflow:hidden;text-overflow:ellipsis}
 @media (max-width:480px){.lab-merek small{display:none}}
+
+/* ===================== v1.5 — posisi saldo, piutang, cocokkan saldo ===================== */
+button.tag-glass { color: #fff; cursor: pointer; font-family: inherit; }
+button.tag-glass:hover { background: rgba(255, 255, 255, .18); }
+.tag-glass .ic { width: 14px; height: 14px; color: var(--gold); }
+.posisi { position: relative; display: grid; grid-template-columns: repeat(3, 1fr); margin: 14px 0 0; border-radius: 16px; background: rgba(255, 255, 255, .06); border: 1px solid rgba(255, 255, 255, .12); }
+.posisi > div { padding: 10px 14px; min-width: 0; }
+.posisi > div + div { border-left: 1px solid rgba(255, 255, 255, .12); }
+.posisi small { color: rgba(255, 255, 255, .65); font-size: 11.5px; display: flex; gap: 4px; align-items: center; }
+.posisi b { font-size: 15px; display: block; margin-top: 2px; white-space: nowrap; }
+.posisi .milik b { color: var(--gold); }
+.posisi-info { position: absolute; right: 6px; top: 6px; width: 26px; height: 26px; border: 0; border-radius: 50%; background: transparent; color: rgba(255, 255, 255, .6); cursor: pointer; display: grid; place-items: center; }
+.posisi-info:hover { color: #fff; background: rgba(255, 255, 255, .1); }
+.pakai-box { margin-top: 10px; padding: 12px; border-radius: 14px; background: #F6F8FB; border: 1px dashed var(--border); }
+
+.ck-row { display: flex; align-items: center; gap: 14px; padding: 12px 0; border-bottom: 1px solid var(--border); }
+.ck-row:last-of-type { border-bottom: 0; }
+.ck-lbl { display: flex; align-items: center; gap: 10px; min-width: 210px; }
+.ck-lbl small { display: block; color: var(--muted); font-size: 12px; }
+.ck-in { display: flex; gap: 6px; align-items: center; flex: 1; min-width: 0; }
+.ck-in .input-pre { flex: 1; min-width: 0; }
+.ck-in .btn-ghost { flex: none; padding: 0 10px; }
+.ck-sum { display: grid; gap: 0; }
+.ck-sum-row { display: grid; grid-template-columns: 1.1fr 1fr 1fr auto; gap: 10px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
+.ck-sum-row.head { font-size: 11.5px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; padding-top: 0; }
+.ck-sum-row:last-child { border-bottom: 0; }
+.ck-hasil.ok { border-color: rgba(16, 185, 129, .35); box-shadow: 0 0 0 3px rgba(16, 185, 129, .08); }
+.ck-list { display: grid; gap: 12px; }
+.ck-temuan { padding: 16px; }
+.ck-judul { display: block; font-size: 15px; line-height: 1.35; }
+.ck-terkait { display: grid; gap: 6px; margin-top: 10px; }
+.ck-trx { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; text-align: left; width: 100%; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--border); background: #F8FAFC; font: inherit; font-size: 13px; color: var(--ink); cursor: pointer; }
+.ck-trx:hover { border-color: var(--gold); }
+.ck-trx > span:first-child { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.ck-trx b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.ck-ai { border: 1px solid rgba(139, 92, 246, .25); }
+.pecahan { display: grid; gap: 6px; }
+.pc-row { display: grid; grid-template-columns: 96px 14px 1fr 110px; gap: 8px; align-items: center; font-size: 14px; }
+.pc-row .input { height: 40px; text-align: right; }
+.pc-row b { text-align: right; font-size: 13px; }
+.pc-total { display: flex; justify-content: space-between; align-items: center; margin-top: 14px; padding: 12px 14px; border-radius: 14px; background: var(--ink); color: #fff; }
+.pc-total b { font-size: 20px; color: var(--gold); }
+
+@media (max-width: 767px) {
+  .posisi { grid-template-columns: 1fr 1fr; }
+  .posisi > div.milik { grid-column: 1 / -1; border-left: 0; border-top: 1px solid rgba(255, 255, 255, .12); }
+  .posisi > div:nth-child(2):not(.milik) { border-left: 1px solid rgba(255, 255, 255, .12); }
+  .ck-row { flex-direction: column; align-items: stretch; gap: 8px; }
+  .ck-lbl { min-width: 0; }
+  .ck-sum-row { grid-template-columns: 1fr 1fr; row-gap: 4px; }
+  .ck-sum-row.head { display: none; }
+  .ck-sum-row > b { grid-column: 1 / -1; }
+  .ck-sum-row > .pill { justify-self: end; }
+  .pc-row { grid-template-columns: 84px 10px 1fr 92px; font-size: 13px; }
+}
+.ck-temuan .btn { white-space: normal; height: auto; min-height: 36px; padding-top: 7px; padding-bottom: 7px; text-align: left; line-height: 1.3; }
