@@ -19,7 +19,7 @@
   function trxRow(t, opt) {
     const i = UI.trxIcon(t);
     const ket = t.keterangan || t.subkategori || (t.jenis === 'Pemasukan' ? t.sumber : t.kategori) || '-';
-    const sub = [t.jenis === 'Pemasukan' ? t.sumber : t.subkategori, t.refTipe === 'hutang' ? 'Bayar hutang' : ''].filter(function (x, i, a) { return x && x !== ket && a.indexOf(x) === i; }).join(' · ');
+    const sub = [t.jenis === 'Pemasukan' ? t.sumber : t.subkategori, t.refTipe === 'hutang' ? 'Bayar hutang' : '', t.oleh === 'Jarvis' ? 'via Jarvis' : ''].filter(function (x, i, a) { return x && x !== ket && a.indexOf(x) === i; }).join(' · ');
     const st = t._pending ? '<span class="status-mini muted">' + ic('loader', 'sm spin') + 'Menyimpan…</span>' : t._queued ? '<span class="status-mini" style="color:var(--amber-ink)">' + ic('wifiOff', 'sm') + 'Antre</span>' : '';
     return '<tr class="clickable ' + (t._pending || t._queued ? 'pending' : '') + '" data-trx="' + e(t.id) + '">' +
       '<td><div class="dt"><b>' + e(U.hijriLabel(t.tanggal)) + '</b><small>' + U.masehi(t.tanggal) + (t.waktu ? ' · ' + e(t.waktu) : '') + '</small></div></td>' +
@@ -33,7 +33,7 @@
     const i = UI.trxIcon(t);
     const ket = t.keterangan || t.subkategori || (t.jenis === 'Pemasukan' ? t.sumber : t.kategori) || '-';
     return '<li class="' + (t._pending || t._queued ? 'pending' : '') + '" data-trx="' + e(t.id) + '"><span class="ic-tile ' + i.tone + '">' + ic(i.ik) + '</span>' +
-      '<div class="mid"><b>' + e(ket) + '</b><small>' + e(U.DOMPET_LABEL[t.dompet]) + (t.akun === 'ATM' ? ' · ATM' : '') + ' · ' +
+      '<div class="mid"><b>' + e(ket) + '</b><small>' + e(U.DOMPET_LABEL[t.dompet]) + (t.akun === 'ATM' ? ' · ATM' : '') + (t.oleh === 'Jarvis' ? ' · via Jarvis' : '') + ' · ' +
  e(t.dompet === 'Pribadi' ? (t.jenis === 'Pemasukan' ? (t.sumber || 'Pemasukan') : (t.kategori || '-')) : U.labelKategori(t)) + (t._queued ? ' · Antre' : t._pending ? ' · Menyimpan…' : '') + '</small></div>' +
       '<div class="rt"><b class="' + (t.jenis === 'Pemasukan' ? 'amt-in' : 'amt-out') + ' num">' + U.rpSigned(t) + '</b><small>' + e(U.hijriLabel(t.tanggal, 'noYear')) + '</small></div></li>';
   }
@@ -827,7 +827,7 @@
         '<div class="row btn-row" style="justify-content:flex-end;gap:10px;margin-top:14px">' + (ai.agen.aktif ? '<button class="btn btn-danger-out" id="agCabut">' + ic('xCircle', 'sm') + 'Cabut kunci</button>' : '') +
         '<button class="btn btn-navy" id="agBuat">' + ic('key') + (ai.agen.aktif ? 'Buat kunci baru' : 'Buat kunci Jarvis') + '</button></div></div>';
     }
-    return '<div class="card"><div class="center" style="padding:10px 0 16px"><img src="assets/logo-mark.png" alt="" style="width:84px;margin:0 auto 10px"><h2 style="margin:0">Safe<span style="color:var(--amber-ink)">Money</span></h2><div class="muted small">Versi 1.7.3 · Frontend GitHub Pages + Google Apps Script</div></div>' +
+    return '<div class="card"><div class="center" style="padding:10px 0 16px"><img src="assets/logo-mark.png" alt="" style="width:84px;margin:0 auto 10px"><h2 style="margin:0">Safe<span style="color:var(--amber-ink)">Money</span></h2><div class="muted small">Versi 1.8.0 · Frontend GitHub Pages + Google Apps Script</div></div>' +
       '<div class="set-row"><div class="txt"><b>Data tersimpan di</b><small>Google Sheets "SafeMoney_DB" & folder Drive "SafeMoney" milik Anda</small></div></div>' +
       '<div class="set-row"><div class="txt"><b>Lupa PIN?</b><small>Jalankan fungsi resetPin() di editor Apps Script, lalu buat PIN baru di aplikasi.</small></div></div>' +
       '<div class="set-row"><div class="txt"><b>Aplikasi di perangkat ini</b><small>' + (App.pwa && App.pwa.terpasang ? 'SafeMoney sedang berjalan sebagai aplikasi terpasang.' : 'Pasang agar punya ikon sendiri di Start Menu / desktop / HP, terbuka di jendela sendiri, dan tetap bisa dibuka saat offline.') + '</small></div>' +
