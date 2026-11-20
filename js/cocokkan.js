@@ -10,10 +10,26 @@
   const PECAHAN = [100000, 50000, 20000, 10000, 5000, 2000, 1000, 500, 200, 100];
 
   function st() {
-    if (!S.cocok) S.cocok = { mode: 'dana', nyata: {}, gabungan: '', hasil: null, ai: null, kunci: '', sibuk: false, aiSibuk: false, rinci: {} };
+    if (!S.cocok) {
+      // pulihkan isian yang belum selesai (tersimpan otomatis di perangkat ini)
+      const dr = U.store.get(K_DRAF, null);
+      S.cocok = { mode: 'dana', nyata: {}, gabungan: '', hasil: null, ai: null, kunci: '', sibuk: false, aiSibuk: false, rinci: {}, pecahan: {}, diubah: 0 };
+      if (dr && typeof dr === 'object') ['mode', 'nyata', 'gabungan', 'rinci', 'pecahan', 'diubah'].forEach(function (k) { if (dr[k] !== undefined) S.cocok[k] = dr[k]; });
+    }
     if (!S.cocok.rinci) S.cocok.rinci = {};
+    if (!S.cocok.pecahan) S.cocok.pecahan = {};
     return S.cocok;
   }
+  const K_DRAF = 'sm_cocok_draf';
+  /** Simpan isian setiap kali berubah — tidak hilang walau aplikasi ditutup / dimuat ulang. */
+  function simpanDraf(c) {
+    c.diubah = Date.now();
+    U.store.set(K_DRAF, { mode: c.mode, nyata: c.nyata, gabungan: c.gabungan, rinci: c.rinci, pecahan: c.pecahan, diubah: c.diubah });
+  }
+  function adaDraf(c) {
+    return c.gabungan !== '' || Object.keys(c.nyata).some(function (k) { return c.nyata[k] !== '' && c.nyata[k] !== undefined; }) || Object.keys(c.pecahan || {}).length > 0;
+  }
+  function hapusDraf() { U.store.del(K_DRAF); }
   function kunciSaldo() { return JSON.stringify(S.boot.saldo) + '|' + JSON.stringify(S.boot.akun || {}) + '|' + JSON.stringify((S.boot.kelompokDana || []).map(function (k) { return k.saldo; })) + '|' + (S.boot.piutang || []).length + '|' + S.boot.pinjaman.length; }
   /** Baris utama: bila ATM sudah dipisah, Pribadi dicek per akun (Tunai & ATM). */
   function unitAktif() {
@@ -141,29 +157,57 @@
         '<div class="card"><div class="card-head">' + ic('banknote') + '<div><h3>1. Hitung uang nyata</h3><div class="small muted">Isi dana yang ingin dicek saja. Uang ATM ikut dihitung ke Pribadi.</div></div></div>' +
         '<div class="seg" id="ckMode" style="margin-bottom:14px"><button data-m="dana" class="' + (c.mode === 'dana' ? 'on in-on' : '') + '">' + ic('grid', 'sm') + 'Per dana</button><button data-m="gabung" class="' + (c.mode === 'gabung' ? 'on in-on' : '') + '">' + ic('wallet', 'sm') + 'Tercampur (total saja)</button></div>' +
         (c.mode === 'gabung' ? inputGabung : inputDana) +
-        '<div class="row" style="justify-content:flex-end;margin-top:16px"><button class="btn btn-gold" data-act="cek" ' + (c.sibuk ? 'disabled' : '') + '>' + ic(c.sibuk ? 'loader' : 'scale', c.sibuk ? 'spin' : '') + 'Cocokkan</button></div></div>' +
+        '<div class="row wrap" style="gap:10px;margin-top:16px">' +
+        (adaDraf(c) ? '<span class="small muted">' + ic('save', 'sm') + ' Isian tersimpan otomatis di perangkat ini' + (c.diubah ? ' · ' + new Date(c.diubah).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' }) : '') + '</span>' +
+          '<button class="link" data-act="kosongkan" style="font-size:13px">' + ic('trash', 'sm') + 'Kosongkan</button>' : '') +
+        '<button class="btn btn-gold" style="margin-left:auto" data-act="cek" ' + (c.sibuk ? 'disabled' : '') + '>' + ic(c.sibuk ? 'loader' : 'scale', c.sibuk ? 'spin' : '') + 'Cocokkan</button></div></div>' +
         hasil +
         (riwayat.length ? '<details style="margin-top:26px"' + (h ? '' : ' open') + '><summary class="link" style="cursor:pointer">Riwayat pencocokan (' + riwayat.length + ')</summary><div class="card solid" style="margin-top:12px">' + riwayat.map(function (r) {
           const tone = r.status === 'Cocok' ? 'p-aman' : r.status === 'Disesuaikan' ? 'p-info' : 'p-hampir';
-          return '<div class="set-row"><span class="ic-tile t-navy">' + ic('scale') + '</span><div class="txt"><b>' + U.masehi(r.tanggal) + ' · ' + e(r.waktu || '') + '</b><small>' + e(ringkasRiwayat(r)) + '</small></div><span class="pill ' + tone + '">' + e(r.status) + '</span></div>';
+          return '<div class="set-row"><span class="ic-tile t-navy">' + ic('scale') + '</span><div class="txt"><b>' + U.masehi(r.tanggal) + ' · ' + e(r.waktu || '') + '</b><small>' + e(ringkasRiwayat(r)) + '</small></div><span class="pill ' + tone + '">' + e(r.status) + '</span>' +
+            '<button class="btn btn-sm btn-sec" data-pakai="' + e(r.id) + '" title="Isi ulang angka uang nyata dari pencocokan ini">' + ic('refresh', 'sm') + '<span class="hide-m">Pakai lagi</span></button></div>';
         }).join('') + '</div></details>' : '');
     },
     mount: function (root, S) {
       const c = st();
-      U.$$('#ckMode [data-m]', root).forEach(function (x) { x.onclick = function () { if (c.mode === x.dataset.m) return; c.mode = x.dataset.m; c.hasil = null; c.ai = null; App.render(); }; });
+      U.$$('#ckMode [data-m]', root).forEach(function (x) { x.onclick = function () { if (c.mode === x.dataset.m) return; c.mode = x.dataset.m; c.hasil = null; c.ai = null; simpanDraf(c); App.render(); }; });
       U.$$('[data-nyata]', root).forEach(function (inp) {
-        inp.addEventListener('input', function () { const n = U.parseNum(inp.value); inp.value = inp.value.trim() === '' ? '' : U.fmtInput(n) || '0'; c.nyata[inp.dataset.nyata] = inp.value === '' ? '' : n; });
+        inp.addEventListener('input', function () { const n = U.parseNum(inp.value); inp.value = inp.value.trim() === '' ? '' : U.fmtInput(n) || '0'; c.nyata[inp.dataset.nyata] = inp.value === '' ? '' : n; simpanDraf(c); });
       });
       const g = U.$('#ckGabung', root);
-      if (g) g.addEventListener('input', function () { const n = U.parseNum(g.value); g.value = g.value.trim() === '' ? '' : U.fmtInput(n) || '0'; c.gabungan = g.value === '' ? '' : n; });
-      U.$$('[data-sama]', root).forEach(function (x) { x.onclick = function () { c.nyata[x.dataset.sama] = catatanUnit(x.dataset.sama); App.render(); }; });
-      U.$$('[data-rinci]', root).forEach(function (x) { x.onclick = function () { const d = x.dataset.rinci; c.rinci[d] = !c.rinci[d]; c.hasil = null; App.render(); }; });
+      if (g) g.addEventListener('input', function () { const n = U.parseNum(g.value); g.value = g.value.trim() === '' ? '' : U.fmtInput(n) || '0'; c.gabungan = g.value === '' ? '' : n; simpanDraf(c); });
+      U.$$('[data-sama]', root).forEach(function (x) { x.onclick = function () { c.nyata[x.dataset.sama] = catatanUnit(x.dataset.sama); simpanDraf(c); App.render(); }; });
+      U.$$('[data-rinci]', root).forEach(function (x) { x.onclick = function () { const d = x.dataset.rinci; c.rinci[d] = !c.rinci[d]; c.hasil = null; simpanDraf(c); App.render(); }; });
       U.$$('[data-pecahan]', root).forEach(function (x) {
         x.onclick = function () {
-          hitungPecahan(x.dataset.pecahan === '__gabung' ? 'Total semua uang' : labelKunci(x.dataset.pecahan), function (tot) {
-            if (x.dataset.pecahan === '__gabung') c.gabungan = tot; else c.nyata[x.dataset.pecahan] = tot;
-            App.render();
+          const k = x.dataset.pecahan;
+          hitungPecahan(k === '__gabung' ? 'Total semua uang' : labelKunci(k), c.pecahan[k], function (isi) {
+            c.pecahan[k] = isi; simpanDraf(c); // hitungan per lembar ikut tersimpan walau belum dipakai
+          }, function (tot) {
+            if (k === '__gabung') c.gabungan = tot; else c.nyata[k] = tot;
+            simpanDraf(c); App.render();
           });
+        };
+      });
+      const ks = root.querySelector('[data-act="kosongkan"]');
+      if (ks) ks.onclick = async function () {
+        if (!(await UI.confirm({ title: 'Kosongkan isian?', text: 'Semua angka uang nyata dan hitungan per lembar di halaman ini dihapus. Riwayat yang sudah disimpan tidak terpengaruh.', ok: 'Kosongkan', icon: 'trash' }))) return;
+        hapusDraf(); S.cocok = null; App.render();
+      };
+      U.$$('[data-pakai]', root).forEach(function (x) {
+        x.onclick = async function () {
+          const r = ((S.boot.cocok || {}).riwayat || []).find(function (z) { return z.id === x.dataset.pakai; });
+          if (!r) return;
+          if (adaDraf(c) && !(await UI.confirm({ title: 'Ganti isian sekarang?', text: 'Isian yang sedang terisi akan diganti dengan angka dari pencocokan ' + U.masehi(r.tanggal) + ' ' + (r.waktu || '') + '.', ok: 'Ganti', icon: 'refresh', tone: 't-navy', btn: 'btn-navy' }))) return;
+          const n = r.nyata || {};
+          c.hasil = null; c.ai = null; c.pecahan = {};
+          if (n.gabungan !== undefined) { c.mode = 'gabung'; c.gabungan = n.gabungan; c.nyata = {}; }
+          else {
+            c.mode = 'dana'; c.gabungan = ''; c.nyata = Object.assign({}, n); c.rinci = {};
+            Object.keys(n).forEach(function (k) { if (k.indexOf('|') > 0) c.rinci[k.split('|')[0]] = true; });
+          }
+          simpanDraf(c); App.render(); window.scrollTo({ top: 0, behavior: 'smooth' });
+          UI.toast('Angka dari ' + U.masehi(r.tanggal) + ' dimuat. Tekan Cocokkan untuk menghitung ulang.', 'info', 4500);
         };
       });
       const cek = root.querySelector('[data-act="cek"]');
@@ -289,7 +333,7 @@
       const r = await API.call('simpanCocok', d);
       UI.toast(r.status === 'Cocok' ? 'Pencocokan tersimpan. Alhamdulillah cocok!' : r.status === 'Disesuaikan' ? 'Catatan disesuaikan & tersimpan.' : 'Pencocokan disimpan (belum cocok).');
       if (r.status === 'Cocok') UI.confetti();
-      S.cocok = null;
+      S.cocok = null; hapusDraf(); // isian baru dikosongkan setelah benar-benar tersimpan
       await App.refresh(true);
     } catch (err) { UI.toast(err.message, 'error'); UI.busy(btn, false); }
   }
@@ -353,12 +397,13 @@
   }
 
   /** Kalkulator pecahan uang: isi jumlah lembar/koin → total. */
-  function hitungPecahan(judul, cb) {
+  function hitungPecahan(judul, awal, onUbah, cb) {
+    awal = awal || {};
     const m = UI.modal({
       title: 'Hitung Uang', icon: 'banknote', tone: 't-gold', sub: e(judul),
       body: '<div class="pecahan">' + PECAHAN.map(function (p) {
-        return '<label class="pc-row"><span class="num">' + U.rp(p) + '</span><span class="muted">×</span><input class="input num" inputmode="numeric" data-pc="' + p + '" placeholder="0"><b class="num" data-pcs="' + p + '">Rp 0</b></label>';
-      }).join('') + '<label class="pc-row"><span>Lainnya / ATM</span><span></span><input class="input num" inputmode="numeric" id="pcLain" placeholder="Rp 0"><b></b></label></div>' +
+        return '<label class="pc-row"><span class="num">' + U.rp(p) + '</span><span class="muted">×</span><input class="input num" inputmode="numeric" data-pc="' + p + '" placeholder="0" value="' + (awal[p] || '') + '"><b class="num" data-pcs="' + p + '">Rp 0</b></label>';
+      }).join('') + '<label class="pc-row"><span>Lainnya / ATM</span><span></span><input class="input num" inputmode="numeric" id="pcLain" placeholder="Rp 0" value="' + (awal.lain ? 'Rp ' + U.fmtInput(awal.lain) : '') + '"><b></b></label></div>' +
         '<div class="pc-total"><span>Total</span><b class="num" id="pcTot">Rp 0</b></div>',
       foot: '<button class="btn btn-sec" data-close>Batal</button><button class="btn btn-gold" id="pcPakai">' + ic('check') + 'Pakai total</button>'
     });
@@ -372,8 +417,16 @@
       const l = m.$('#pcLain'); const nl = U.parseNum(l.value); total += nl;
       m.$('#pcTot').textContent = U.rp(total);
     }
-    m.$$('[data-pc]').forEach(function (inp) { inp.addEventListener('input', function () { inp.value = String(U.parseNum(inp.value) || ''); hitung(); }); });
-    const l = m.$('#pcLain'); l.addEventListener('input', function () { const n = U.parseNum(l.value); l.value = n ? 'Rp ' + U.fmtInput(n) : ''; hitung(); });
+    function catat() {
+      const isi = {};
+      m.$$('[data-pc]').forEach(function (inp) { const n = U.parseNum(inp.value); if (n) isi[inp.dataset.pc] = n; });
+      const nl = U.parseNum(m.$('#pcLain').value); if (nl) isi.lain = nl;
+      if (onUbah) onUbah(isi);
+    }
+    m.$$('[data-pc]').forEach(function (inp) { inp.addEventListener('input', function () { inp.value = String(U.parseNum(inp.value) || ''); hitung(); catat(); }); });
+    const l = m.$('#pcLain'); l.addEventListener('input', function () { const n = U.parseNum(l.value); l.value = n ? 'Rp ' + U.fmtInput(n) : ''; hitung(); catat(); });
+    hitung();
+
     m.$('#pcPakai').onclick = function () { m.close(); cb(total); };
   }
 
