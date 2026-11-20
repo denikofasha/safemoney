@@ -40,13 +40,32 @@
     chat().push({ peran: 'user', teks: teks, adaFoto: !!gambar, foto: gambar ? gambar.preview : '', t: Date.now() });
     C.menunggu = true; simpan(); kabari();
     try {
-      const r = await API.call('konsultasi', { pesan: teks, riwayat: riwayat, gambar: gambar ? { mime: gambar.mime, data: gambar.data } : undefined }, { timeout: 150000 });
-      chat().push({ peran: 'ai', teks: r.jawaban, usulan: r.usulan, catatanUsulan: r.catatanUsulan, dibaca: r.dibaca, cadangan: r.cadangan ? r.model : '', t: Date.now() });
+      const r = await API.call('konsultasi', { pesan: teks, riwayat: riwayat, penyedia: C.penyedia(), gambar: gambar ? { mime: gambar.mime, data: gambar.data } : undefined }, { timeout: 150000 });
+      chat().push({ peran: 'ai', teks: r.jawaban, usulan: r.usulan, catatanUsulan: r.catatanUsulan, dibaca: r.dibaca, cadangan: r.cadangan ? r.model : '',
+        oleh: (r.penyedia || '') + (r.model ? ' · ' + r.model : ''), catatanPenyedia: r.catatanPenyedia || '', t: Date.now() });
     } catch (err) {
       chat().push({ peran: 'ai', teks: '⚠️ ' + err.message, gagal: true, ulang: teks, gbr: gambar || null, t: Date.now() });
     } finally { C.menunggu = false; simpan(); kabari(); }
   };
   C.baru = function () { S_().chat = []; simpan(); kabari(); };
+  /** Pilihan AI: 'otomatis' (Gemini, bila gagal → DeepSeek), 'gemini', 'deepseek'. Diingat per perangkat. */
+  C.penyedia = function (v) {
+    if (v) U.store.set('sm_ai_penyedia', v);
+    const ai = (S_().boot && S_().boot.ai) || {};
+    let p = U.store.get('sm_ai_penyedia', 'otomatis');
+    if (p === 'gemini' && !ai.adaKunci) p = 'otomatis';
+    if (p === 'deepseek' && !ai.adaDeepseek) p = 'otomatis';
+    return p;
+  };
+  C.aktif = function () { const ai = (S_().boot && S_().boot.ai) || {}; return !!(ai.adaKunci || ai.adaDeepseek); };
+  /** Dropdown pilihan model (dipakai halaman Konsultan & widget). */
+  C.pilihHTML = function (id, kelas) {
+    const ai = (S_().boot && S_().boot.ai) || {}, p = C.penyedia();
+    const opsi = [['otomatis', 'Otomatis' + (ai.adaKunci && ai.adaDeepseek ? ' (Gemini → DeepSeek)' : '')]];
+    if (ai.adaKunci) opsi.push(['gemini', 'Gemini · ' + (ai.modelKonsultan || 'gemini')]);
+    if (ai.adaDeepseek) opsi.push(['deepseek', 'DeepSeek · ' + (ai.modelDeepseek || 'deepseek-chat')]);
+    return '<select class="' + kelas + '" id="' + id + '" title="Pilih model AI" aria-label="Pilih model AI">' + opsi.map(function (o) { return '<option value="' + o[0] + '"' + (o[0] === p ? ' selected' : '') + '>' + e(o[1]) + '</option>'; }).join('') + '</select>';
+  };
   /** Kirim ulang pertanyaan dari pesan gagal ke-i (pesan gagal & pertanyaannya diganti yang baru). */
   C.ulangi = function (i) {
     const c = chat(), m = c[i];
@@ -101,7 +120,9 @@
     return '<div class="msg ai' + (m.gagal ? ' gagal' : '') + '"><span class="av">' + ic('sparkles', 'sm') + '</span><div class="bub">' + md(m.teks) + kartuUsulan(m, i) +
       (m.catatanUsulan ? '<div class="meta">' + e(m.catatanUsulan) + '</div>' : '') +
       (m.gagal && m.ulang ? '<button class="us-btn pri ulang" data-ulang="' + i + '">' + ic('refresh', 'sm') + 'Coba lagi</button>' : '') +
-      (m.cadangan ? '<div class="meta">' + ic('info', 'sm') + 'Model utama sedang sibuk, dijawab oleh ' + e(m.cadangan) + '</div>' : '') +
+      (m.catatanPenyedia ? '<div class="meta">' + ic('info', 'sm') + e(m.catatanPenyedia) + '</div>'
+        : m.cadangan ? '<div class="meta">' + ic('info', 'sm') + 'Model utama sedang sibuk, dijawab oleh ' + e(m.cadangan) + '</div>' : '') +
+      (m.oleh && !m.gagal ? '<div class="meta dim">' + ic('sparkles', 'sm') + e(m.oleh) + '</div>' : '') +
       (m.dibaca ? '<div class="meta">' + ic('info', 'sm') + 'Membaca ' + m.dibaca.transaksi + ' transaksi ' + e(m.dibaca.periode) + (m.dibaca.pengetahuan && m.dibaca.pengetahuan.length ? ' · ' + m.dibaca.pengetahuan.length + ' catatan' : '') + '</div>' : '') +
       '</div></div>';
   }
@@ -146,15 +167,15 @@
       const ai = S.boot.ai || {};
       const nama = String(S.boot.pengaturan.nama_pemilik || '').split(' ')[0];
       const nKn = (ai.pengetahuan || []).filter(function (k) { return k.aktif; }).length;
-      if (!ai.adaKunci) {
+      if (!C.aktif()) {
         return '<div class="lab"><div class="lab-blobs" aria-hidden="true"><i></i><i></i><i></i></div><div class="lab-wrap"><div class="lab-hero">' +
-          '<h1 class="lab-judul">Konsultan belum aktif</h1><span class="lab-garis"></span><p>Isi API key Gemini di Pengaturan → AI &amp; Jarvis untuk mulai berkonsultasi.</p>' +
+          '<h1 class="lab-judul">Konsultan belum aktif</h1><span class="lab-garis"></span><p>Isi API key Gemini atau DeepSeek di Pengaturan → AI &amp; Jarvis untuk mulai berkonsultasi.</p>' +
           '<button class="lab-kirim aktif" data-go-ai>' + ic('settings', 'sm') + '<span>Buka Pengaturan</span></button></div></div></div>';
       }
       const ada = chat().length > 0;
       return '<div class="lab' + (ada ? ' berisi' : '') + '" id="lab">' +
         '<div class="lab-blobs" aria-hidden="true"><i></i><i></i><i></i></div><div class="lab-glow" id="labGlow" aria-hidden="true"></div>' +
-        '<div class="lab-bar"><span class="lab-merek">' + ic('sparkles', 'sm') + 'Konsultan AI <small>' + e(ai.modelKonsultan || '') + '</small></span>' +
+        '<div class="lab-bar"><span class="lab-merek">' + ic('sparkles', 'sm') + 'Konsultan AI</span>' + C.pilihHTML('labModel', 'lab-model') +
         '<button class="lab-tb" id="labKn">' + ic('book', 'sm') + '<span>Pengetahuan</span><b>' + nKn + '</b></button>' +
         (ada ? '<button class="lab-tb" id="labBaru" aria-label="Percakapan baru">' + ic('refresh', 'sm') + '<span>Baru</span></button>' : '') + '</div>' +
         '<div class="lab-wrap">' +
@@ -196,6 +217,8 @@
       };
       const pikir = function () { const p = U.$('#labPikir', root); if (p) p.hidden = !C.menunggu; };
       isiChat(); lampiran(); tinggi(); tombol(); pikir();
+      const pm = U.$('#labModel', root);
+      if (pm) pm.onchange = function () { C.penyedia(pm.value); UI.toast(pm.value === 'otomatis' ? 'Otomatis: Gemini dulu, DeepSeek bila Gemini gagal.' : 'Konsultan memakai ' + pm.options[pm.selectedIndex].text + '.', 'info'); };
 
       // dengarkan mesin chat (dibersihkan saat halaman berganti)
       const dengar = function () {
@@ -307,8 +330,9 @@
   function isiPanel() {
     const body = document.getElementById('aiwBody'); if (!body) return;
     const S = S_(), ai = S.boot.ai || {};
-    if (!ai.adaKunci) {
-      body.innerHTML = '<div class="aiw-kosong">' + ic('sparkles', 'xl') + '<h3>Asisten belum aktif</h3><p>Isi API key Gemini di Pengaturan → AI &amp; Jarvis.</p><button class="aiw-chip" id="aiwSet">Buka Pengaturan</button></div>';
+    if (!C.aktif()) {
+      body.innerHTML = '<div class="aiw-kosong">' + ic('sparkles', 'xl') + '<h3>Asisten belum aktif</h3><p>Isi API key Gemini atau DeepSeek di Pengaturan → AI &amp; Jarvis.</p><button class="aiw-chip" id="aiwSet">Buka Pengaturan</button></div>';
+
       const b = document.getElementById('aiwSet'); if (b) b.onclick = function () { tutup(); S.setTab = 'ai'; App.go('pengaturan'); };
       return;
     }

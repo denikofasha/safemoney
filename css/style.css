@@ -961,3 +961,10 @@ button.tag-glass:hover { background: rgba(255, 255, 255, .18); }
 .akun-row .muted-w { color: rgba(255, 255, 255, .6); }
 .akun-row .tag-glass { margin-left: auto; }
 .akun-seg button small { font-weight: 600; opacity: .75; margin-left: 2px; }
+
+/* v1.6 — pilihan model AI di Konsultan */
+.lab-model { height: 34px; max-width: 220px; padding: 0 28px 0 10px; border-radius: 10px; border: 1px solid var(--lab-line); background: rgba(255, 255, 255, .06); color: #fff; font: 600 12.5px/1 inherit; font-family: inherit; cursor: pointer; text-overflow: ellipsis; }
+.lab-model option { color: #0B1F3A; background: #fff; }
+.msg .meta.dim { opacity: .6; }
+@media (max-width: 480px) { .lab-model { max-width: 130px; } }
+@media (max-width: 480px) { .lab-merek { font-size: 0; gap: 0; flex: 0 0 auto; } .lab-model { max-width: 170px; margin-right: auto; } }

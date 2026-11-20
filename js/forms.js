@@ -670,13 +670,20 @@
         '<span>Alasan</span><b>' + e(p.alasan || '-') + '</b><span>Tanggal</span><b>' + U.hijriLabel(p.tanggal) + '</b><span>Jatuh tempo</span><b>' + (p.jatuhTempo ? U.hijriLabel(p.jatuhTempo) + ' · ' + U.masehi(p.jatuhTempo) : '-') + '</b></div>' +
         (p.adaBukti ? '<button class="btn btn-sec btn-block" style="margin-top:12px" data-bk="' + p.idBukti + '">' + ic('image') + 'Lihat foto bukti pinjaman</button>' : '') +
         '<div class="sect-title">Riwayat pengembalian</div>' + (p.riwayat.length ? p.riwayat.map(function (r) {
-          return '<div class="set-row"><span class="ic-tile t-em">' + ic('banknote') + '</span><div class="txt"><b class="num">' + U.rp(r.nominal) + '</b><small>' + U.hijriLabel(r.tanggal) + ' · ' + e(r.catatan || '') + '</small></div>' + (r.adaBukti ? '<button class="btn btn-sm btn-ghost" data-bk="' + r.idBukti + '">' + ic('image', 'sm') + '</button>' : '') + '</div>';
+          return '<div class="set-row"><span class="ic-tile t-em">' + ic('banknote') + '</span><div class="txt"><b class="num">' + U.rp(r.nominal) + '</b><small>' + U.hijriLabel(r.tanggal) + ' · ' + e(r.catatan || '') + '</small></div>' + (r.adaBukti ? '<button class="btn btn-sm btn-ghost" data-bk="' + r.idBukti + '">' + ic('image', 'sm') + '</button>' : '') +
+            '<button class="btn btn-sm btn-ghost" data-batal-byr="' + r.id + '" title="Batalkan catatan ini">' + ic('x', 'sm') + '</button></div>';
         }).join('') : '<div class="small muted">Belum ada pengembalian.</div>'),
       foot: (p.terbayar === 0 && p.status === 'Berjalan' ? '<button class="btn btn-danger-out" id="pjBatal">' + ic('xCircle') + 'Batalkan</button>' : '') +
         (p.status === 'Berjalan' ? '<button class="btn btn-sec" id="pjUbah">' + ic('edit') + 'Ubah</button>' : '') + '<button class="btn btn-navy" data-close>Tutup</button>'
     });
     m.$$('[data-bk]').forEach(function (x) { x.onclick = function () { F.lihatBukti(x.dataset.bk); }; });
     const ub = m.$('#pjUbah'); if (ub) ub.onclick = function () { m.close(); F.ubahPinjaman(p); };
+    m.$$('[data-batal-byr]').forEach(function (x) {
+      x.onclick = async function () {
+        if (!(await UI.confirm({ title: 'Batalkan catatan pengembalian?', text: 'Gunakan bila salah catat. Sisa pinjaman bertambah lagi.', ok: 'Batalkan' }))) return;
+        try { await API.call('batalBayarPinjaman', { id: x.dataset.batalByr }); m.close(); UI.toast('Catatan pengembalian dibatalkan.'); await App.refresh(true); } catch (err) { UI.toast(err.message, 'error'); }
+      };
+    });
     const bt = m.$('#pjBatal');
     if (bt) bt.onclick = async function () {
       const ok = await UI.confirm({ title: 'Batalkan pinjaman?', text: 'Gunakan jika pinjaman salah catat. Saldo kedua dompet kembali seperti semula' + (p.idTrxPakai ? ', dan pengeluaran yang dicatat bersamanya ikut dihapus.' : '.'), ok: 'Batalkan' });
