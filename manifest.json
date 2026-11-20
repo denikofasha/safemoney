@@ -1,13 +1,22 @@
 {
+  "id": "./",
   "name": "SafeMoney — Keuangan Personal",
   "short_name": "SafeMoney",
-  "start_url": "./",
+  "description": "Monitoring & manajemen keuangan pribadi, dana pondok, dan dana terop berbasis kalender Hijriah.",
+  "lang": "id",
+  "start_url": "./#/beranda",
   "scope": "./",
   "display": "standalone",
+  "orientation": "any",
   "background_color": "#002A55",
   "theme_color": "#003D79",
   "icons": [
-    { "src": "assets/app-icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "assets/app-icon-512.png", "sizes": "512x512", "type": "image/png" }
+    { "src": "assets/app-icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "assets/app-icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ],
+  "shortcuts": [
+    { "name": "Cocokkan Saldo", "short_name": "Cocokkan", "url": "./#/cocokkan", "icons": [{ "src": "assets/app-icon-192.png", "sizes": "192x192" }] },
+    { "name": "Riwayat Transaksi", "short_name": "Transaksi", "url": "./#/transaksi", "icons": [{ "src": "assets/app-icon-192.png", "sizes": "192x192" }] },
+    { "name": "Konsultan AI", "short_name": "Konsultan", "url": "./#/konsultan", "icons": [{ "src": "assets/app-icon-192.png", "sizes": "192x192" }] }
   ]
 }

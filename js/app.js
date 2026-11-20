@@ -169,10 +169,13 @@
         item('laporan', 'chart', 'Laporan', 't-navy', 'Grafik & PDF') +
         item('konsultan', 'sparkles', 'Konsultan AI', 't-violet', 'Tanya & minta saran') +
         item('pengaturan', 'settings', 'Pengaturan', 't-navy', 'PIN, kutipan, kalender') +
-        '</div><button class="btn btn-danger-out btn-block" id="mLogout" style="margin-top:16px">' + ic('lock') + 'Keluar dari perangkat ini</button>'
+        '</div>' + (App.pwa && !App.pwa.terpasang ? '<button class="btn btn-gold btn-block" id="mPasang" style="margin-top:16px">' + ic('download') + 'Pasang SafeMoney sebagai aplikasi</button>' : '') +
+        '<button class="btn btn-danger-out btn-block" id="mLogout" style="margin-top:16px">' + ic('lock') + 'Keluar dari perangkat ini</button>'
     });
     m.$$('[data-go]').forEach(function (b2) { b2.onclick = function () { m.close(); App.go(b2.dataset.go); }; });
     m.$('#mLogout').onclick = function () { m.close(); App.logout(false); };
+    const mp = m.$('#mPasang'); if (mp) mp.onclick = function () { m.close(); App.pwa.pasang(); };
+
   }
 
   function pilihPeriode() {
@@ -430,6 +433,36 @@
     window.addEventListener('orientationchange', function () { setTimeout(atur, 300); });
     atur();
   })();
+
+  // ============================================================
+  // PWA — pasang SafeMoney sebagai aplikasi (PC / HP)
+  // ============================================================
+  const PWA = App.pwa = { prompt: null, terpasang: window.matchMedia && window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true };
+  if ('serviceWorker' in navigator && /^https:|^http:\/\/localhost/.test(location.href)) {
+    window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () { /* opsional */ }); });
+  }
+  window.addEventListener('beforeinstallprompt', function (ev) { ev.preventDefault(); PWA.prompt = ev; });
+  window.addEventListener('appinstalled', function () { PWA.prompt = null; PWA.terpasang = true; UI.toast('SafeMoney terpasang. Buka dari Start Menu / desktop.'); });
+  /** Tombol "Pasang aplikasi": pakai prompt resmi browser bila tersedia, kalau tidak beri petunjuk. */
+  PWA.pasang = async function () {
+    if (PWA.terpasang) return UI.toast('SafeMoney sudah berjalan sebagai aplikasi.', 'info');
+    if (PWA.prompt) {
+      PWA.prompt.prompt();
+      const r = await PWA.prompt.userChoice.catch(function () { return {}; });
+      PWA.prompt = null;
+      if (r && r.outcome === 'accepted') UI.toast('Memasang SafeMoney…');
+      return;
+    }
+    UI.modal({
+      title: 'Pasang SafeMoney', icon: 'monitor', tone: 't-navy',
+      body: '<p style="margin-top:0">Browser belum menawarkan pemasangan otomatis. Caranya:</p>' +
+        '<ol style="padding-left:18px;line-height:1.7"><li><b>Chrome / Edge di PC:</b> klik ikon <b>Pasang</b> (layar dengan panah ⤓) di ujung kanan kolom alamat, atau menu ⋮ → <b>Cast, simpan, dan bagikan → Pasang halaman sebagai aplikasi</b> (Edge: ⋯ → <b>Aplikasi → Pasang situs ini sebagai aplikasi</b>).</li>' +
+        '<li><b>HP Android:</b> menu ⋮ → <b>Tambahkan ke layar utama / Instal aplikasi</b>.</li>' +
+        '<li><b>iPhone:</b> Safari → Bagikan → <b>Tambah ke Layar Utama</b>.</li></ol>' +
+        '<div class="note info">' + ic('info') + '<div>Setelah terpasang, SafeMoney punya ikon sendiri di Start Menu/desktop dan terbuka di jendela sendiri tanpa kolom alamat.</div></div>',
+      foot: '<button class="btn btn-navy" data-close>Mengerti</button>'
+    });
+  };
 
   document.addEventListener('DOMContentLoaded', App.start);
 })();

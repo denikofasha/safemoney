@@ -827,9 +827,11 @@
         '<div class="row btn-row" style="justify-content:flex-end;gap:10px;margin-top:14px">' + (ai.agen.aktif ? '<button class="btn btn-danger-out" id="agCabut">' + ic('xCircle', 'sm') + 'Cabut kunci</button>' : '') +
         '<button class="btn btn-navy" id="agBuat">' + ic('key') + (ai.agen.aktif ? 'Buat kunci baru' : 'Buat kunci Jarvis') + '</button></div></div>';
     }
-    return '<div class="card"><div class="center" style="padding:10px 0 16px"><img src="assets/logo-mark.png" alt="" style="width:84px;margin:0 auto 10px"><h2 style="margin:0">Safe<span style="color:var(--amber-ink)">Money</span></h2><div class="muted small">Versi 1.7.1 · Frontend GitHub Pages + Google Apps Script</div></div>' +
+    return '<div class="card"><div class="center" style="padding:10px 0 16px"><img src="assets/logo-mark.png" alt="" style="width:84px;margin:0 auto 10px"><h2 style="margin:0">Safe<span style="color:var(--amber-ink)">Money</span></h2><div class="muted small">Versi 1.7.2 · Frontend GitHub Pages + Google Apps Script</div></div>' +
       '<div class="set-row"><div class="txt"><b>Data tersimpan di</b><small>Google Sheets "SafeMoney_DB" & folder Drive "SafeMoney" milik Anda</small></div></div>' +
       '<div class="set-row"><div class="txt"><b>Lupa PIN?</b><small>Jalankan fungsi resetPin() di editor Apps Script, lalu buat PIN baru di aplikasi.</small></div></div>' +
+      '<div class="set-row"><div class="txt"><b>Aplikasi di perangkat ini</b><small>' + (App.pwa && App.pwa.terpasang ? 'SafeMoney sedang berjalan sebagai aplikasi terpasang.' : 'Pasang agar punya ikon sendiri di Start Menu / desktop / HP, terbuka di jendela sendiri, dan tetap bisa dibuka saat offline.') + '</small></div>' +
+        (App.pwa && App.pwa.terpasang ? '<span class="pill p-aman">' + ic('checkCircle') + 'Terpasang</span>' : '<button class="btn btn-sm btn-gold" id="pasangApp">' + ic('download', 'sm') + 'Pasang</button>') + '</div>' +
       '<div class="set-row"><div class="txt"><b>Muat ulang data</b><small>Ambil data terbaru dari server</small></div><button class="btn btn-sm btn-sec" id="reload">' + ic('refresh', 'sm') + 'Muat ulang</button></div>' +
       '<div class="set-row"><div class="txt"><b>Ikon</b><small>Lucide (ISC License)</small></div></div></div>';
   }
@@ -942,6 +944,7 @@
       U.$$('[data-katbaru]', root).forEach(function (b) { b.onclick = function () { Forms.kategori({ dompet: b.dataset.katbaru }); }; });
       U.$$('[data-kat]', root).forEach(function (b) { b.onclick = function () { Forms.kategori(S.boot.kategoriDompet.find(function (k) { return k.id === b.dataset.kat; })); }; });
     } else {
+      const pa = U.$('#pasangApp', root); if (pa) pa.onclick = function () { App.pwa.pasang(); };
       const rl = U.$('#reload', root); if (rl) rl.onclick = async function () { UI.busy(rl, true); try { S.hintsSent = false; await App.refresh(); UI.toast('Data diperbarui.'); } catch (err) { UI.toast(err.message, 'error'); UI.busy(rl, false); } };
     }
   }
