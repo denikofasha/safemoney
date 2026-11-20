@@ -1029,7 +1029,7 @@
     const env = 'SAFEMONEY_URL=' + url + '\nSAFEMONEY_KEY=' + kunci;
     const m = UI.modal({
       title: 'Kunci Jarvis', icon: 'key', tone: 't-violet', sub: 'Hanya ditampilkan sekali',
-      body: '<p style="margin-top:0">Tempel dua baris ini ke file <b>.env</b> Hermes (<code>%LOCALAPPDATA%\\hermes\\.env</code>), lalu jalankan <code>hermes gateway restart</code> dan kirim <code>/new</code> di Telegram.</p>' +
+      body: '<p style="margin-top:0">Tekan <b>Salin</b>, lalu di PC Jarvis jalankan <code>C:\\Jarvis\\setup\\pasang-kunci-safemoney.ps1</code> dan cukup tekan <b>Enter</b> — kunci diambil otomatis dari clipboard. <b>Jangan menempel</b> teks ini ke Terminal.</p>' +
         '<pre class="code-box" id="kjEnv">' + e(env) + '</pre>' +
         '<div class="note warn">' + ic('alert') + '<div>Simpan kunci ini seperti PIN. Jangan dikirim ke chat atau ditulis di Obsidian. Kalau bocor, tekan <b>Cabut kunci</b> lalu buat yang baru.</div></div>',
       foot: '<button class="btn btn-sec" data-close>Tutup</button><button class="btn btn-gold" id="kjCopy">' + ic('copy') + 'Salin</button>'
