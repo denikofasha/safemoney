@@ -33,7 +33,8 @@
     const i = UI.trxIcon(t);
     const ket = t.keterangan || t.subkategori || (t.jenis === 'Pemasukan' ? t.sumber : t.kategori) || '-';
     return '<li class="' + (t._pending || t._queued ? 'pending' : '') + '" data-trx="' + e(t.id) + '"><span class="ic-tile ' + i.tone + '">' + ic(i.ik) + '</span>' +
-      '<div class="mid"><b>' + e(ket) + '</b><small>' + e(U.DOMPET_LABEL[t.dompet]) + ' · ' + e(t.dompet === 'Pribadi' ? (t.jenis === 'Pemasukan' ? (t.sumber || 'Pemasukan') : (t.kategori || '-')) : U.labelKategori(t)) + (t._queued ? ' · Antre' : t._pending ? ' · Menyimpan…' : '') + '</small></div>' +
+      '<div class="mid"><b>' + e(ket) + '</b><small>' + e(U.DOMPET_LABEL[t.dompet]) + (t.akun === 'ATM' ? ' · ATM' : '') + ' · ' +
+ e(t.dompet === 'Pribadi' ? (t.jenis === 'Pemasukan' ? (t.sumber || 'Pemasukan') : (t.kategori || '-')) : U.labelKategori(t)) + (t._queued ? ' · Antre' : t._pending ? ' · Menyimpan…' : '') + '</small></div>' +
       '<div class="rt"><b class="' + (t.jenis === 'Pemasukan' ? 'amt-in' : 'amt-out') + ' num">' + U.rpSigned(t) + '</b><small>' + e(U.hijriLabel(t.tanggal, 'noYear')) + '</small></div></li>';
   }
   function trxTable(list, opt) {
@@ -84,6 +85,10 @@
         '<div class="grid g-12" style="margin-top:22px">' +
         '<div class="card balance span-7"><div class="row"><span class="eyebrow">' + ic('landmark', 'sm') + ' Uang Pribadi di Tangan</span><button class="tag-glass" data-go="cocokkan" title="Cocokkan dengan uang nyata">' + ic('scale', 'sm') + 'Cocokkan</button></div>' +
         '<div class="big num"><span data-count="' + b.saldo.Pribadi + '">' + U.rp(b.saldo.Pribadi) + '</span><small>IDR</small></div>' +
+        (b.akun && b.akun.aktif
+          ? '<div class="akun-row"><span>' + ic('wallet', 'sm') + 'Tunai <b class="num">' + U.rp(b.akun.Tunai) + '</b></span><span>' + ic('landmark', 'sm') + 'ATM <b class="num">' + U.rp(b.akun.ATM) + '</b></span>' +
+            '<button class="tag-glass" data-act="pindah-uang">' + ic('swap', 'sm') + 'Pindah uang</button></div>'
+          : '<div class="akun-row"><span class="muted-w">Semua uang Pribadi dihitung Tunai.</span><button class="tag-glass" data-act="saldo-atm">' + ic('landmark', 'sm') + 'Pisahkan saldo ATM</button></div>') +
         (pos.kembalikan || pos.diLuar ? '<div class="posisi">' +
           (pos.kembalikan ? '<div><small>' + ic('arrowUp', 'sm') + 'Wajib dikembalikan</small><b class="num">− ' + U.rp(pos.kembalikan) + '</b></div>' : '') +
           (pos.diLuar ? '<div><small>' + ic('arrowDown', 'sm') + 'Dipinjam pihak lain</small><b class="num">+ ' + U.rp(pos.diLuar) + '</b></div>' : '') +
@@ -143,6 +148,8 @@
       const tb = root.querySelector('[data-act="target-baru"]'); if (tb) tb.onclick = function () { Forms.target(); };
       const ev = root.querySelector('[data-act="evaluasi"]'); if (ev) ev.onclick = function () { Forms.terapkanEvaluasi(); };
       const ps = root.querySelector('[data-act="posisi"]'); if (ps) ps.onclick = function () { Forms.posisi('Pribadi'); };
+      const pu = root.querySelector('[data-act="pindah-uang"]'); if (pu) pu.onclick = function () { Forms.pindahUang(); };
+      const sa = root.querySelector('[data-act="saldo-atm"]'); if (sa) sa.onclick = function () { Forms.saldoAwalATM(); };
       quoteSlider(root, S);
     }
   };
@@ -819,7 +826,7 @@
         '<div class="row btn-row" style="justify-content:flex-end;gap:10px;margin-top:14px">' + (ai.agen.aktif ? '<button class="btn btn-danger-out" id="agCabut">' + ic('xCircle', 'sm') + 'Cabut kunci</button>' : '') +
         '<button class="btn btn-navy" id="agBuat">' + ic('key') + (ai.agen.aktif ? 'Buat kunci baru' : 'Buat kunci Jarvis') + '</button></div></div>';
     }
-    return '<div class="card"><div class="center" style="padding:10px 0 16px"><img src="assets/logo-mark.png" alt="" style="width:84px;margin:0 auto 10px"><h2 style="margin:0">Safe<span style="color:var(--amber-ink)">Money</span></h2><div class="muted small">Versi 1.5.0 · Frontend GitHub Pages + Google Apps Script</div></div>' +
+    return '<div class="card"><div class="center" style="padding:10px 0 16px"><img src="assets/logo-mark.png" alt="" style="width:84px;margin:0 auto 10px"><h2 style="margin:0">Safe<span style="color:var(--amber-ink)">Money</span></h2><div class="muted small">Versi 1.6.0 · Frontend GitHub Pages + Google Apps Script</div></div>' +
       '<div class="set-row"><div class="txt"><b>Data tersimpan di</b><small>Google Sheets "SafeMoney_DB" & folder Drive "SafeMoney" milik Anda</small></div></div>' +
       '<div class="set-row"><div class="txt"><b>Lupa PIN?</b><small>Jalankan fungsi resetPin() di editor Apps Script, lalu buat PIN baru di aplikasi.</small></div></div>' +
       '<div class="set-row"><div class="txt"><b>Muat ulang data</b><small>Ambil data terbaru dari server</small></div><button class="btn btn-sm btn-sec" id="reload">' + ic('refresh', 'sm') + 'Muat ulang</button></div>' +

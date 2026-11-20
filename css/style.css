@@ -952,3 +952,12 @@ button.tag-glass:hover { background: rgba(255, 255, 255, .18); }
   .pc-row { grid-template-columns: 84px 10px 1fr 92px; font-size: 13px; }
 }
 .ck-temuan .btn { white-space: normal; height: auto; min-height: 36px; padding-top: 7px; padding-bottom: 7px; text-align: left; line-height: 1.3; }
+
+/* ===================== v1.6 — akun Pribadi Tunai & ATM ===================== */
+.akun-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin: 6px 0 2px; font-size: 13px; color: rgba(255, 255, 255, .8); }
+.akun-row > span { display: inline-flex; align-items: center; gap: 5px; }
+.akun-row > span .ic { color: var(--gold); width: 15px; height: 15px; }
+.akun-row b { color: #fff; }
+.akun-row .muted-w { color: rgba(255, 255, 255, .6); }
+.akun-row .tag-glass { margin-left: auto; }
+.akun-seg button small { font-weight: 600; opacity: .75; margin-left: 2px; }

@@ -13,16 +13,25 @@
     if (!S.cocok) S.cocok = { mode: 'dana', nyata: {}, gabungan: '', hasil: null, ai: null, kunci: '', sibuk: false, aiSibuk: false };
     return S.cocok;
   }
-  function kunciSaldo() { return JSON.stringify(S.boot.saldo) + '|' + (S.boot.piutang || []).length + '|' + S.boot.pinjaman.length; }
+  function kunciSaldo() { return JSON.stringify(S.boot.saldo) + '|' + JSON.stringify(S.boot.akun || {}) + '|' + (S.boot.piutang || []).length + '|' + S.boot.pinjaman.length; }
+  /** Baris yang bisa diisi: bila ATM sudah dipisah, Pribadi dicek per akun (Tunai & ATM). */
+  function unitAktif() {
+    return S.boot.akun && S.boot.akun.aktif ? ['Tunai', 'ATM', 'Pondok', 'Terop'] : DOMPET;
+  }
+  const UNIT = {
+    Tunai: { label: 'Pribadi › Tunai', ik: 'wallet', tone: 't-navy' }, ATM: { label: 'Pribadi › ATM', ik: 'landmark', tone: 't-navy' },
+    Pribadi: { label: 'Pribadi', ik: 'wallet', tone: 't-navy' }, Pondok: { label: 'Dana Pondok', ik: 'building', tone: 't-em' }, Terop: { label: 'Dana Terop', ik: 'tent', tone: 't-gold' }
+  };
+  function catatanUnit(k) { return k === 'Tunai' || k === 'ATM' ? (S.boot.akun || {})[k] || 0 : S.boot.saldo[k]; }
   function payload(c) {
     if (c.mode === 'gabung') return { gabungan: U.parseNum(c.gabungan) };
     const n = {};
-    DOMPET.forEach(function (d) { if (c.nyata[d] !== undefined && c.nyata[d] !== '') n[d] = U.parseNum(c.nyata[d]); });
+    unitAktif().forEach(function (d) { if (c.nyata[d] !== undefined && c.nyata[d] !== '') n[d] = U.parseNum(c.nyata[d]); });
     return { nyata: n };
   }
   function adaInput(c) {
     if (c.mode === 'gabung') return c.gabungan !== '';
-    return DOMPET.some(function (d) { return c.nyata[d] !== undefined && c.nyata[d] !== ''; });
+    return unitAktif().some(function (d) { return c.nyata[d] !== undefined && c.nyata[d] !== ''; });
   }
   function pillSelisih(s) {
     if (!s) return '<span class="pill p-aman">' + ic('checkCircle') + 'Cocok</span>';
@@ -42,10 +51,10 @@
       const totalCatatan = DOMPET.reduce(function (s, d) { return s + b.saldo[d]; }, 0);
       const h = c.hasil;
 
-      const inputDana = DOMPET.map(function (d) {
+      const inputDana = unitAktif().map(function (d) {
         const v = c.nyata[d];
-        return '<div class="ck-row"><div class="ck-lbl"><span class="ic-tile ' + (d === 'Pribadi' ? 't-navy' : d === 'Pondok' ? 't-em' : 't-gold') + '">' + ic(U.DOMPET_IKON[d]) + '</span>' +
-          '<div><b>' + U.DOMPET_LABEL[d] + '</b><small>Catatan: <span class="num">' + U.rp(b.saldo[d]) + '</span></small></div></div>' +
+        return '<div class="ck-row"><div class="ck-lbl"><span class="ic-tile ' + UNIT[d].tone + '">' + ic(UNIT[d].ik) + '</span>' +
+          '<div><b>' + UNIT[d].label + '</b><small>Catatan: <span class="num">' + U.rp(catatanUnit(d)) + '</span></small></div></div>' +
           '<div class="ck-in"><div class="input-pre"><span>Rp</span><input class="input num" inputmode="numeric" data-nyata="' + d + '" placeholder="kosong = tidak dicek" value="' + (v !== undefined && v !== '' ? U.fmtInput(v) : '') + '"></div>' +
           '<button class="btn btn-sm btn-ghost" data-pecahan="' + d + '" title="Hitung per lembar">' + ic('banknote', 'sm') + '<span class="hide-m">Hitung</span></button>' +
           '<button class="btn btn-sm btn-ghost" data-sama="' + d + '" title="Isi sama dengan catatan">=</button></div></div>';
@@ -62,7 +71,7 @@
         const baris = h.gabungan
           ? '<div class="ck-sum-row"><b>Semua dana</b><span class="num">' + U.rp(h.nyata.gabungan) + '</span><span class="num muted">' + U.rp(totalCatatan) + '</span>' + pillSelisih(h.totalSelisih) + '</div>'
           : h.dicek.map(function (d) {
-            return '<div class="ck-sum-row"><b>' + U.DOMPET_LABEL[d] + '</b><span class="num">' + U.rp(h.nyata[d]) + '</span><span class="num muted">' + U.rp(h.catatan[d]) + '</span>' + pillSelisih(h.selisih[d]) + '</div>';
+            return '<div class="ck-sum-row"><b>' + e((h.label && h.label[d]) || (UNIT[d] || {}).label || d) + '</b><span class="num">' + U.rp(h.nyata[d]) + '</span><span class="num muted">' + U.rp(h.catatan[d]) + '</span>' + pillSelisih(h.selisih[d]) + '</div>';
           }).join('');
         hasil = '<div class="card ck-hasil' + (h.cocok ? ' ok' : '') + '" style="margin-top:22px"><div class="card-head">' + ic(h.cocok ? 'checkCircle' : 'scale') + '<h3>' + (h.cocok ? 'Alhamdulillah, semuanya cocok' : 'Hasil pencocokan') + '</h3>' + (c.sibuk ? '<span class="small muted" style="margin-left:auto">' + ic('loader', 'sm spin') + ' menghitung ulang…</span>' : '') + '</div>' +
           '<div class="ck-sum"><div class="ck-sum-row head"><span>Dana</span><span>Uang nyata</span><span>Catatan</span><span>Selisih</span></div>' + baris + '</div>' +
@@ -78,7 +87,7 @@
             '<div class="card" style="margin-top:22px"><div class="card-head">' + ic('flag') + '<h3>Selesaikan</h3></div>' +
             '<p class="muted" style="margin-top:0">Perbaiki dulu lewat tombol di setiap temuan — hasil dihitung ulang otomatis. Bila sisa selisih tetap tidak ketemu, sesuaikan catatan agar sama dengan uang nyata (tidak memengaruhi pos anggaran).</p>' +
             '<div class="field"><label class="label">Catatan pencocokan <span class="hint">opsional</span></label><input class="input" id="ckCatatan" maxlength="300" placeholder="Contoh: sisa 7rb kemungkinan parkir & receh"></div>' +
-            (h.gabungan ? '<div class="field"><label class="label">Selisih disesuaikan ke dana</label><select class="select" id="ckDompetSes">' + DOMPET.map(function (d) { return '<option value="' + d + '">' + U.DOMPET_LABEL[d] + '</option>'; }).join('') + '</select></div>' : '') +
+            (h.gabungan ? '<div class="field"><label class="label">Selisih disesuaikan ke dana</label><select class="select" id="ckDompetSes">' + unitAktif().map(function (d) { return '<option value="' + d + '">' + UNIT[d].label + '</option>'; }).join('') + '</select></div>' : '') +
             '<div class="row btn-row" style="justify-content:flex-end;gap:10px;margin-top:14px;flex-wrap:wrap"><button class="btn btn-sec" data-act="simpan-belum">' + ic('save') + 'Simpan, belum cocok</button>' +
             '<button class="btn btn-navy" data-act="sesuaikan">' + ic('scale') + 'Sesuaikan &amp; simpan</button></div></div>';
         }
@@ -106,10 +115,10 @@
       });
       const g = U.$('#ckGabung', root);
       if (g) g.addEventListener('input', function () { const n = U.parseNum(g.value); g.value = g.value.trim() === '' ? '' : U.fmtInput(n) || '0'; c.gabungan = g.value === '' ? '' : n; });
-      U.$$('[data-sama]', root).forEach(function (x) { x.onclick = function () { c.nyata[x.dataset.sama] = S.boot.saldo[x.dataset.sama]; App.render(); }; });
+      U.$$('[data-sama]', root).forEach(function (x) { x.onclick = function () { c.nyata[x.dataset.sama] = catatanUnit(x.dataset.sama); App.render(); }; });
       U.$$('[data-pecahan]', root).forEach(function (x) {
         x.onclick = function () {
-          hitungPecahan(x.dataset.pecahan === '__gabung' ? 'Total semua uang' : U.DOMPET_LABEL[x.dataset.pecahan], function (tot) {
+          hitungPecahan(x.dataset.pecahan === '__gabung' ? 'Total semua uang' : UNIT[x.dataset.pecahan].label, function (tot) {
             if (x.dataset.pecahan === '__gabung') c.gabungan = tot; else c.nyata[x.dataset.pecahan] = tot;
             App.render();
           });
@@ -143,7 +152,7 @@
       const ss = root.querySelector('[data-act="sesuaikan"]');
       if (ss) ss.onclick = async function () {
         const h = c.hasil;
-        const rinci = h.gabungan ? U.rp(Math.abs(h.totalSelisih)) : h.dicek.filter(function (d) { return h.selisih[d]; }).map(function (d) { return U.DOMPET_LABEL[d] + ' ' + (h.selisih[d] > 0 ? '+' : '−') + U.rp(Math.abs(h.selisih[d])); }).join(', ');
+        const rinci = h.gabungan ? U.rp(Math.abs(h.totalSelisih)) : h.dicek.filter(function (d) { return h.selisih[d]; }).map(function (d) { return ((h.label && h.label[d]) || d) + ' ' + (h.selisih[d] > 0 ? '+' : '−') + U.rp(Math.abs(h.selisih[d])); }).join(', ');
         const ok = await UI.confirm({ title: 'Sesuaikan catatan?', icon: 'scale', tone: 't-navy', btn: 'btn-navy', ok: 'Sesuaikan',
           html: 'Akan dibuat catatan <b>Penyesuaian (selisih kas)</b>: ' + e(rinci) + '. Saldo jadi sama dengan uang nyata. Pos anggaran tidak berubah. Catatan ini bisa dihapus dari riwayat transaksi bila keliru.' });
         if (ok) simpan(this, true);
@@ -159,9 +168,9 @@
     const n = r.nyata || {}, c = r.catatan || {};
     let teks;
     if (n.gabungan !== undefined) teks = 'Gabungan ' + (r.selisih ? (r.selisih > 0 ? '+' : '−') + U.rp(Math.abs(r.selisih)) : 'cocok');
-    else teks = DOMPET.filter(function (d) { return n[d] !== undefined; }).map(function (d) {
+    else teks = Object.keys(UNIT).filter(function (d) { return n[d] !== undefined; }).map(function (d) {
       const s = n[d] - (c[d] || 0);
-      return U.DOMPET_LABEL[d] + ' ' + (s ? (s > 0 ? '+' : '−') + U.rp(Math.abs(s)) : 'cocok');
+      return UNIT[d].label + ' ' + (s ? (s > 0 ? '+' : '−') + U.rp(Math.abs(s)) : 'cocok');
     }).join(' · ');
     return teks + (r.ket ? ' — ' + r.ket : '');
   }
@@ -178,11 +187,11 @@
       }).join('') + '</div>' : '') + '</div>';
   }
   function ikonTemuan(t) {
-    return { pindahDana: 'swap', salahDompet: 'swap', dobel: 'copy', salahKetik: 'edit', piutangKembali: 'handCoins', pinjamanKembali: 'banknote',
+    return { pindahAkun: 'landmark', pindahDana: 'swap', salahDompet: 'swap', dobel: 'copy', salahKetik: 'edit', piutangKembali: 'handCoins', pinjamanKembali: 'banknote',
       lupaMasuk: 'arrowDown', lupaKeluar: 'arrowUp', rutin: 'history', hariKosong: 'calendar', kecil: 'coins', hutangBaru: 'user', hutangDibayar: 'user' }[t.tipe] || 'sparkles';
   }
   function ikonAksi(tp) {
-    return { pinjam: 'swap', pindah: 'swap', hapus: 'trash', ubahNominal: 'edit', transaksi: 'plus', terimaPiutang: 'arrowDown', bayarPinjaman: 'banknote',
+    return { pindahUang: 'swap', pinjam: 'swap', pindah: 'swap', hapus: 'trash', ubahNominal: 'edit', transaksi: 'plus', terimaPiutang: 'arrowDown', bayarPinjaman: 'banknote',
       bayarHutang: 'banknote', hutang: 'user', penyesuaian: 'scale' }[tp] || 'check';
   }
 
@@ -249,11 +258,14 @@
     const trx = function (id) { return (t.terkait || []).find(function (z) { return z.id === id; }); };
     switch (a.tipe) {
       case 'pinjam':
-        return Forms.pinjam({ dari: a.dari, ke: a.ke, nominal: a.nominal, alasan: 'Hasil cocokkan saldo: uang ' + U.DOMPET_LABEL[a.dari] + ' terpakai untuk ' + U.DOMPET_LABEL[a.ke] });
+        return Forms.pinjam({ dari: a.dari, ke: a.ke, kelompokDari: a.kelompokDari, kelompokKe: a.kelompokKe, nominal: a.nominal, alasan: 'Hasil cocokkan saldo: uang ' + U.DOMPET_LABEL[a.dari] + ' terpakai untuk ' + U.DOMPET_LABEL[a.ke] });
+      case 'pindahUang':
+        return Forms.pindahUang({ dari: a.dari, nominal: a.nominal });
       case 'pindah': {
         const z = trx(a.idTrx); if (!z) return;
+        if (z.dompet === a.ke) return Forms.transaksi(Object.assign({}, z, { akun: a.akun || 'Tunai' })); // hanya ganti akun Tunai/ATM
         UI.toast('Pilih pos/kategori untuk ' + U.DOMPET_LABEL[a.ke] + ', lalu simpan.', 'info', 4000);
-        return Forms.transaksi(Object.assign({}, z, { dompet: a.ke, kategori: '', idKelompok: '', sumber: z.jenis === 'Pemasukan' ? z.sumber : '' }));
+        return Forms.transaksi(Object.assign({}, z, { dompet: a.ke, akun: a.akun || '', kategori: '', idKelompok: '', sumber: z.jenis === 'Pemasukan' ? z.sumber : '' }));
       }
       case 'ubahNominal': {
         const z = trx(a.idTrx); if (!z) return;
@@ -267,7 +279,7 @@
         return;
       }
       case 'transaksi':
-        return Forms.transaksi({ jenis: a.jenis, dompet: a.dompet, nominal: a.nominal, kategori: a.kategori || '', subkategori: a.subkategori || '', keterangan: a.keterangan || '', tanggal: a.tanggal });
+        return Forms.transaksi({ jenis: a.jenis, dompet: a.dompet, akun: a.akun || undefined, nominal: a.nominal, kategori: a.kategori || '', subkategori: a.subkategori || '', keterangan: a.keterangan || '', tanggal: a.tanggal });
       case 'terimaPiutang': {
         const x = (b.piutang || []).find(function (p) { return p.id === a.id; }); if (!x) return;
         return Forms.terimaPiutang(x, a.nominal);
@@ -281,14 +293,16 @@
         return Forms.bayarHutang(h);
       }
       case 'hutang':
-        return Forms.hutang({ nominal: a.nominal });
+        return Forms.hutang({ nominal: a.nominal, akun: a.akun || undefined });
       case 'penyesuaian': {
         const n = Math.round(a.nominal);
         if (!n) return;
-        const ok = await UI.confirm({ title: 'Sesuaikan ' + U.DOMPET_LABEL[a.dompet] + '?', icon: 'scale', tone: 't-navy', btn: 'btn-navy', ok: 'Sesuaikan',
-          html: 'Catatan ' + U.DOMPET_LABEL[a.dompet] + ' akan ' + (n > 0 ? 'ditambah' : 'dikurangi') + ' <b>' + U.rp(Math.abs(n)) + '</b> sebagai selisih kas (tidak memengaruhi pos anggaran).' });
+        const nm = U.DOMPET_LABEL[a.dompet] + (a.akun ? ' › ' + a.akun : '');
+        const ok = await UI.confirm({ title: 'Sesuaikan ' + nm + '?', icon: 'scale', tone: 't-navy', btn: 'btn-navy', ok: 'Sesuaikan',
+          html: 'Catatan ' + e(nm) + ' akan ' + (n > 0 ? 'ditambah' : 'dikurangi') + ' <b>' + U.rp(Math.abs(n)) + '</b> sebagai selisih kas (tidak memengaruhi pos anggaran).' });
         if (!ok) return;
-        try { await API.call('sesuaikanSaldo', { dompet: a.dompet, nominal: n, catatan: t.judul }); UI.toast('Disesuaikan.'); await App.refresh(true); } catch (err) { UI.toast(err.message, 'error'); }
+        try { await API.call('sesuaikanSaldo', { dompet: a.dompet, akun: a.akun || '', nominal: n, catatan: t.judul }); UI.toast('Disesuaikan.'); await App.refresh(true); } catch (err) { UI.toast(err.message, 'error'); }
+
         return;
       }
     }

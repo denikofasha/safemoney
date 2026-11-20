@@ -140,7 +140,8 @@
   };
   /** Teks kolom "kategori" untuk tabel: pos (Pribadi), anggaran·kategori (Pondok), kepanitiaan (Terop). */
   U.labelKategori = function (t) {
-    if (t.dompet === 'Pribadi') return t.jenis === 'Pemasukan' ? 'Pemasukan' : (t.kategori || '-');
+    if (t.refTipe === 'pindah') return 'Pindah uang';
+    if (t.dompet === 'Pribadi') return (t.jenis === 'Pemasukan' ? 'Pemasukan' : (t.kategori || '-')) + (t.akun === 'ATM' ? ' · ATM' : '');
     const k = U.namaKelompok(t.idKelompok) || (t.dompet === 'Pondok' ? 'Tanpa anggaran' : 'Tanpa kepanitiaan');
     if (t.dompet === 'Terop') return k;
     return k + ' · ' + (t.jenis === 'Pemasukan' ? 'Dana masuk' : (t.kategori || '-'));

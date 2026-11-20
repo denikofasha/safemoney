@@ -251,6 +251,7 @@
   function terapkanLokal(t, arah) {
     const b = S.boot, n = Number(t.nominal) * arah;
     if (b.saldo[t.dompet] !== undefined) b.saldo[t.dompet] += t.jenis === 'Pemasukan' ? n : -n;
+    if (t.dompet === 'Pribadi' && b.akun) { const ak = t.akun === 'ATM' ? 'ATM' : 'Tunai'; b.akun[ak] += t.jenis === 'Pemasukan' ? n : -n; }
     if (t.tanggal < b.periode.mulai || t.tanggal > b.periode.akhir || t.dompet !== 'Pribadi') return;
     if (t.jenis === 'Pemasukan') { b.ringkasan.pemasukan += n; return; }
     const a = b.anggaran.find(function (x) { return x.kategori === t.kategori; });

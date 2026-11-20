@@ -100,7 +100,8 @@
       id: pre.id || '', jenis: pre.jenis || 'Pengeluaran', dompet: pre.dompet || 'Pribadi',
       kategori: pre.kategori || '', sumber: pre.sumber || '', subkategori: pre.subkategori || '',
       tanggal: pre.tanggal || (App.isCurrentPeriod() ? b.hariIni : (b.hariIni >= b.periode.mulai && b.hariIni <= b.periode.akhir ? b.hariIni : b.periode.akhir)),
-      idTarget: pre.idTarget || '', idKelompok: pre.idKelompok || '', kelBaru: false
+      idTarget: pre.idTarget || '', idKelompok: pre.idKelompok || '', kelBaru: false,
+      akun: pre.akun || U.store.get('sm_akun', 'Tunai')
     };
     if (!st.kategori && st.dompet === 'Pribadi' && st.jenis === 'Pengeluaran') st.kategori = '';
     const isEdit = !!st.id;
@@ -114,7 +115,7 @@
         '<div class="sect-title">Pilih dompet / kas <span id="saldoInfo"></span></div>' +
         '<div class="choice-grid c3" id="tDompet">' + ['Pribadi', 'Pondok', 'Terop'].map(function (d) {
           return '<button class="choice wallet ' + (st.dompet === d ? 'on' : '') + '" data-d="' + d + '"><b>' + U.DOMPET_LABEL[d] + '</b><small class="num">' + U.rp(b.saldo[d]) + '</small><span class="chk">' + ic('checkCircle', 'sm') + '</span></button>';
-        }).join('') + '</div>' +
+        }).join('') + '</div><div id="tAkun"></div>' +
         '<div style="margin-top:14px">' + amountField('tNom', pre.nominal) + '</div>' +
         '<div style="margin-top:14px">' + dateField('tTgl', st.tanggal, 'Tanggal transaksi') + '</div>' +
         '<div id="tDyn"></div>' +
@@ -147,7 +148,14 @@
           '<input class="input" id="tKelNama" maxlength="80" placeholder="' + (isP ? 'Nama anggaran, mis. Anggaran Maulid Nabi' : 'Nama kepanitiaan, mis. Panitia Walimah Bpk. Hasan') + '" value="' + e(st.kelNama || '') + '">' +
           (isP ? '<div class="input-pre"><span>Rp</span><input class="input num" id="tKelPagu" inputmode="numeric" placeholder="Pagu (opsional)" value="' + e(st.kelPagu || '') + '"></div>' : '') + '</div>' : '') + '</div>';
     }
+    function akunBox() {
+      const box = m.$('#tAkun');
+      if (st.dompet !== 'Pribadi') { box.innerHTML = ''; return; }
+      box.innerHTML = akunSeg('tAkunSeg', st.akun, st.jenis === 'Pemasukan' ? 'Uangnya masuk ke' : 'Dibayar dari');
+      bindAkunSeg(m, 'tAkunSeg', function (a) { st.akun = a; });
+    }
     function dyn() {
+      akunBox();
       const box = m.$('#tDyn');
       let h = '';
       if (st.dompet === 'Pribadi' && st.jenis === 'Pengeluaran') {
@@ -317,8 +325,10 @@
         subkategori: st.jenis === 'Pengeluaran' && st.dompet === 'Pribadi' ? st.subkategori : '', nominal: nominal,
         keterangan: m.$('#tKet').value.trim(), idTarget: st.kategori === 'Tabungan' ? st.idTarget : '',
         bukti: bukti.val ? { mime: bukti.val.mime, data: bukti.val.data } : undefined, _adaBukti: pre.adaBukti, refTipe: pre.refTipe,
-        idKelompok: st.dompet !== 'Pribadi' && !st.kelBaru ? st.idKelompok : '', kelompokBaru: kelompokBaru
+        idKelompok: st.dompet !== 'Pribadi' && !st.kelBaru ? st.idKelompok : '', kelompokBaru: kelompokBaru,
+        akun: st.dompet === 'Pribadi' ? st.akun : ''
       };
+      if (st.dompet === 'Pribadi' && !isEdit) U.store.set('sm_akun', st.akun);
       // peringatan sebelum melewati batas (PRD US-D2)
       const a = b.anggaran.find(function (x) { return x.kategori === payload.kategori; });
       if (st.dompet === 'Pribadi' && st.jenis === 'Pengeluaran' && a && U.POS_SIMPAN.indexOf(a.kategori) < 0 && payload.tanggal >= b.periode.mulai && payload.tanggal <= b.periode.akhir) {
@@ -328,6 +338,11 @@
           const ok = await UI.confirm({ title: 'Melewati batas ' + a.kategori, html: 'Pengeluaran ini akan membuat pos <b>' + e(a.kategori) + '</b> menjadi <b>' + Math.round((a.terpakai + tambah) / Math.max(1, a.batas) * 100) + '%</b>, melewati batas sebesar <b class="out">' + U.rp(lebih) + '</b>. Tetap simpan?', ok: 'Tetap Simpan', cancel: 'Batal / Sesuaikan', icon: 'alert' });
           if (!ok) return;
         }
+      }
+      const akunSaldo = st.dompet === 'Pribadi' && b.akun && b.akun.aktif ? b.akun[st.akun] : null;
+      if (st.jenis === 'Pengeluaran' && !isEdit && akunSaldo != null && nominal > akunSaldo && nominal <= b.saldo.Pribadi) {
+        const ok = await UI.confirm({ title: 'Uang ' + st.akun + ' tidak cukup', html: 'Saldo ' + st.akun + ' tercatat <b>' + U.rp(akunSaldo) + '</b>. Kalau Anda baru ' + (st.akun === 'Tunai' ? 'tarik tunai dari ATM' : 'setor ke ATM') + ', catat dulu lewat <b>Pindah uang</b>. Tetap simpan?', ok: 'Tetap Simpan', icon: 'wallet', tone: 't-gold', btn: 'btn-navy' });
+        if (!ok) return;
       }
       if (st.jenis === 'Pengeluaran' && !isEdit && nominal > b.saldo[st.dompet]) {
         const ok = await UI.confirm({ title: 'Saldo tidak cukup', html: 'Saldo ' + U.DOMPET_LABEL[st.dompet] + ' tercatat <b>' + U.rp(b.saldo[st.dompet]) + '</b>. Jika memang memakai dana lain, catat lewat <b>Pinjam Antar Dana</b> agar rapi. Tetap simpan?', ok: 'Tetap Simpan', icon: 'wallet', tone: 't-gold', btn: 'btn-navy' });
@@ -344,18 +359,86 @@
     };
   };
 
+  // ---------- akun Pribadi: Tunai / ATM ----------
+  function akunSeg(id, sel, label) {
+    const a = S.boot.akun || { Tunai: S.boot.saldo.Pribadi, ATM: 0 };
+    return '<div class="sect-title">' + e(label || 'Akun') + '</div><div class="seg akun-seg" id="' + id + '">' + ['Tunai', 'ATM'].map(function (k) {
+      return '<button type="button" data-akun="' + k + '" class="' + (sel === k ? 'on in-on' : '') + '">' + ic(k === 'ATM' ? 'landmark' : 'wallet', 'sm') + k + ' <small class="num">' + U.rpShort(a[k]) + '</small></button>';
+    }).join('') + '</div>';
+  }
+  function bindAkunSeg(m, id, cb) {
+    m.$$('#' + id + ' [data-akun]').forEach(function (x) {
+      x.onclick = function () { m.$$('#' + id + ' [data-akun]').forEach(function (c) { c.className = c === x ? 'on in-on' : ''; }); cb(x.dataset.akun); };
+    });
+  }
+  F.akunSeg = akunSeg; F.bindAkunSeg = bindAkunSeg;
+
+  /** Pindah uang antar akun Pribadi: tarik tunai (ATM → Tunai) / setor (Tunai → ATM). */
+  F.pindahUang = function (pre) {
+    pre = pre || {};
+    const b = S.boot, a = b.akun || { Tunai: 0, ATM: 0 };
+    let dari = pre.dari || 'ATM';
+    const m = UI.modal({
+      title: 'Pindah Uang', icon: 'swap', tone: 't-navy', sub: 'Antara Tunai dan ATM — total Pribadi tetap',
+      body: '<div class="seg" id="puArah"><button data-dari="ATM" class="' + (dari === 'ATM' ? 'on in-on' : '') + '">' + ic('arrowDown', 'sm') + 'Tarik tunai</button>' +
+        '<button data-dari="Tunai" class="' + (dari === 'Tunai' ? 'on in-on' : '') + '">' + ic('arrowUp', 'sm') + 'Setor ke ATM</button></div>' +
+        '<div class="kv" style="margin-top:14px"><span>Saldo Tunai</span><b class="num">' + U.rp(a.Tunai) + '</b><span>Saldo ATM</span><b class="num">' + U.rp(a.ATM) + '</b></div>' +
+        '<div style="margin-top:14px">' + amountField('puNom', pre.nominal || 0, 'Nominal dipindah') + '</div>' +
+        '<div class="field"><label class="label">Biaya admin <span class="hint">opsional · dicatat ke pos Kebutuhan Primer</span></label><div class="input-pre"><span>Rp</span><input class="input num" id="puBiaya" inputmode="numeric" placeholder="0"></div></div>' +
+        dateField('puTgl', pre.tanggal || b.hariIni, 'Tanggal') +
+        '<div class="field"><label class="label">Catatan</label><input class="input" id="puCat" placeholder="opsional, mis. ATM BSI depan pondok"></div>' +
+        '<div class="note info" style="margin-top:12px">' + ic('info') + '<div>Bukan pemasukan atau pengeluaran — pos anggaran tidak berubah.</div></div>',
+      foot: '<button class="btn btn-sec" data-close>Batal</button><button class="btn btn-gold" id="puSave">' + ic('checkCircle') + 'Simpan</button>'
+    });
+    const getNom = bindAmount(m, 'puNom'); bindDate(m, 'puTgl');
+    const bi = m.$('#puBiaya'); bi.oninput = function () { bi.value = U.fmtInput(bi.value); };
+    m.$$('#puArah [data-dari]').forEach(function (x) { x.onclick = function () { dari = x.dataset.dari; m.$$('#puArah [data-dari]').forEach(function (c) { c.className = c === x ? 'on in-on' : ''; }); }; });
+    m.$('#puSave').onclick = async function () {
+      const n = getNom();
+      if (!n) return UI.toast('Isi nominal.', 'error');
+      UI.busy(this, true);
+      try {
+        await API.call('pindahUang', { dari: dari, ke: dari === 'ATM' ? 'Tunai' : 'ATM', nominal: n, biaya: U.parseNum(bi.value), tanggal: m.$('#puTgl').value, catatan: m.$('#puCat').value.trim() });
+        m.close(); UI.toast(dari === 'ATM' ? 'Tarik tunai tercatat.' : 'Setoran ke ATM tercatat.'); await App.refresh(true);
+      } catch (err) { UI.toast(err.message, 'error'); UI.busy(this, false); }
+    };
+  };
+
+  /** Sekali di awal: pisahkan saldo ATM dari saldo Pribadi lama (yang selama ini dianggap Tunai). */
+  F.saldoAwalATM = function () {
+    const b = S.boot;
+    const m = UI.modal({
+      title: 'Pisahkan Saldo ATM', icon: 'landmark', tone: 't-navy', sub: 'Sekali saja, di awal',
+      body: '<p class="muted" style="margin-top:0">Selama ini semua uang Pribadi (<b>' + U.rp(b.saldo.Pribadi) + '</b>) dianggap Tunai. Isi saldo ATM Anda sekarang (lihat di m-banking / struk ATM). Sisanya otomatis menjadi Tunai.</p>' +
+        amountField('saNom', 0, 'Saldo ATM sekarang') + '<div class="note info" style="margin-top:12px" id="saInfo">' + ic('info') + '<div>Tunai menjadi ' + U.rp(b.saldo.Pribadi) + '.</div></div>',
+      foot: '<button class="btn btn-sec" data-close>Batal</button><button class="btn btn-gold" id="saSave">' + ic('save') + 'Simpan</button>'
+    });
+    const getNom = bindAmount(m, 'saNom', function (n) {
+      const t = b.saldo.Pribadi - n;
+      m.$('#saInfo').className = 'note ' + (t < 0 ? 'warn' : 'info');
+      m.$('#saInfo').innerHTML = ic(t < 0 ? 'alert' : 'info') + '<div>Tunai menjadi <b>' + U.rp(t) + '</b>.' + (t < 0 ? ' Minus — kemungkinan ada pemasukan ke ATM yang belum dicatat. Tetap boleh disimpan, lalu cocokkan saldo.' : ' Pastikan sama dengan uang di dompet; kalau beda, pakai Cocokkan Saldo.') + '</div>';
+    });
+    m.$('#saSave').onclick = async function () {
+      const n = getNom();
+      if (!n) return UI.toast('Isi saldo ATM.', 'error');
+      UI.busy(this, true);
+      try { await API.call('pindahUang', { dari: 'Tunai', ke: 'ATM', nominal: n, awal: true }); m.close(); UI.toast('Saldo ATM dipisahkan.'); await App.refresh(true); }
+      catch (err) { UI.toast(err.message, 'error'); UI.busy(this, false); }
+    };
+  };
+
   // ============================================================
   // DETAIL TRANSAKSI + BUKTI
   // ============================================================
   F.detailTransaksi = function (t) {
     const i = UI.trxIcon(t);
-    const otomatis = t.refTipe === 'penyesuaian' || t.refTipe === 'piutang';
+    const otomatis = t.refTipe === 'penyesuaian' || t.refTipe === 'piutang' || t.refTipe === 'pindah';
     const tgt = t.idTarget && S.boot.target.find(function (x) { return x.id === t.idTarget; });
     const m = UI.modal({
       title: t.keterangan || t.subkategori || t.kategori || t.sumber || 'Transaksi', icon: i.ik, tone: i.tone, sub: U.DOMPET_LABEL[t.dompet] + ' · ' + t.jenis,
       body: '<div class="center" style="margin:6px 0 16px"><div class="big-amt num ' + (t.jenis === 'Pemasukan' ? 'in' : 'out') + '">' + U.rpSigned(t) + '</div><div class="small muted">' + U.terbilang(t.nominal) + '</div></div>' +
         '<div class="kv"><span>Tanggal</span><b>' + e(U.hijriLabel(t.tanggal, 'H')) + '</b><span>Masehi</span><b>' + U.masehi(t.tanggal, true) + (t.waktu ? ' · ' + e(t.waktu) : '') + '</b>' +
-        '<span>Dompet</span><b>' + U.DOMPET_LABEL[t.dompet] + '</b>' +
+        '<span>Dompet</span><b>' + U.DOMPET_LABEL[t.dompet] + (t.dompet === 'Pribadi' && t.akun ? ' · ' + e(t.akun) : '') + '</b>' +
         (t.jenis === 'Pemasukan' ? '<span>Sumber</span><b>' + e(t.sumber || '-') + '</b>' : '<span>Kategori</span><b>' + e(t.kategori || '-') + '</b>' + (t.subkategori ? '<span>Subkategori</span><b>' + e(t.subkategori) + '</b>' : '')) +
         (tgt ? '<span>Target</span><b>' + e(tgt.nama) + '</b>' : '') +
         (t.dompet !== 'Pribadi' ? '<span>' + (t.dompet === 'Pondok' ? 'Anggaran' : 'Kepanitiaan') + '</span><b>' + e(U.namaKelompok(t.idKelompok) || '— belum dikelompokkan') + '</b>' : '') + (t.refTipe === 'hutang' ? '<span>Jenis</span><b>Pembayaran hutang</b>' : '') + '<span>ID</span><b class="small">' + e(t.id) + '</b></div>' +
@@ -364,7 +447,8 @@
       foot: '<button class="btn btn-danger-out" id="dDel">' + ic('trash') + 'Hapus</button>' + (otomatis ? '' : '<button class="btn btn-navy" id="dEdit">' + ic('edit') + 'Ubah</button>')
     });
     const vb = m.$('#dBukti'); if (vb) vb.onclick = function () { F.lihatBukti(t.idBukti); };
-    if (otomatis) m.$('.m-body').insertAdjacentHTML('beforeend', '<div class="note info" style="margin-top:12px">' + ic('info') + '<div>' + (t.refTipe === 'piutang' ? 'Catatan otomatis dari piutang yang diikhlaskan.' : 'Catatan otomatis <b>Penyesuaian (selisih kas)</b> dari Cocokkan Saldo — tidak memengaruhi pos anggaran.') + ' Tidak bisa diubah; hapus bila keliru.</div></div>');
+    if (otomatis) m.$('.m-body').insertAdjacentHTML('beforeend', '<div class="note info" style="margin-top:12px">' + ic('info') + '<div>' + (t.refTipe === 'pindah' ? 'Pindah uang antara Tunai dan ATM (dicatat sepasang; menghapus satu ikut menghapus pasangannya).' : t.refTipe === 'piutang' ? 'Catatan otomatis dari piutang yang diikhlaskan.' :
+ 'Catatan otomatis <b>Penyesuaian (selisih kas)</b> dari Cocokkan Saldo — tidak memengaruhi pos anggaran.') + ' Tidak bisa diubah; hapus bila keliru.</div></div>');
     if (t.refTipe === 'pinjaman') m.$('.m-body').insertAdjacentHTML('beforeend', '<div class="note info" style="margin-top:12px">' + ic('swap') + '<div>Pengeluaran ini dibayar dengan uang pinjaman antar dana (dicatat bersamaan).</div></div>');
     const up = m.$('#dUp');
     if (up) up.onchange = async function () {
@@ -420,7 +504,12 @@
       .sort(function (a, c) { return (a.status === 'Aktif' ? 0 : 1) - (c.status === 'Aktif' ? 0 : 1) || c.saldo - a.saldo; });
   }
   function kasField(id, dompet, sel, label, wajib) {
-    if (dompet === 'Pribadi') return '';
+    if (dompet === 'Pribadi') {
+      const a = S.boot.akun || { Tunai: S.boot.saldo.Pribadi, ATM: 0 };
+      return '<div class="field" style="margin-top:10px"><label class="label">' + ic('wallet', 'sm') + ' ' + (/Masuk/.test(label) ? 'Masuk ke akun' : 'Dari akun') + '</label>' +
+        '<select class="select" id="' + id + '"><option value="" ' + (sel !== 'ATM' ? 'selected' : '') + '>Tunai · ' + U.rp(a.Tunai) + '</option>' +
+        '<option value="ATM" ' + (sel === 'ATM' ? 'selected' : '') + '>ATM · ' + U.rp(a.ATM) + '</option></select></div>';
+    }
     const ks = daftarKas(dompet);
     if (!ks.length) return '<div class="small muted" style="margin-top:6px">Belum ada ' + (dompet === 'Pondok' ? 'anggaran pondok' : 'kepanitiaan') + ' — uang dihitung sebagai kas umum ' + U.DOMPET_LABEL[dompet] + '.</div>';
     const nm = dompet === 'Pondok' ? 'anggaran' : 'kepanitiaan';
@@ -429,7 +518,8 @@
       ks.map(function (k) { return '<option value="' + k.id + '" ' + (k.id === sel ? 'selected' : '') + '>' + e(k.nama) + ' · sisa ' + U.rp(k.saldo) + (k.status === 'Selesai' ? ' (selesai)' : '') + '</option>'; }).join('') + '</select></div>';
   }
   function kasSaldo(dompet, idKel) {
-    if (dompet === 'Pribadi' || !idKel) return null;
+    if (dompet === 'Pribadi') return S.boot.akun && S.boot.akun.aktif ? S.boot.akun[idKel === 'ATM' ? 'ATM' : 'Tunai'] : null;
+    if (!idKel) return null;
     const k = daftarKas(dompet).find(function (x) { return x.id === idKel; });
     return k ? k.saldo : null;
   }
@@ -490,8 +580,9 @@
       if (st.dari === st.ke) { el.className = 'note danger'; el.innerHTML = ic('alert') + '<div>Dompet sumber dan penerima tidak boleh sama.</div>'; return; }
       if (n > b.saldo[st.dari]) { el.className = 'note danger'; el.innerHTML = ic('alert') + '<div>Nominal melebihi saldo ' + U.DOMPET_LABEL[st.dari] + ' (' + U.rp(b.saldo[st.dari]) + ').</div>'; return; }
       const sk = kasSaldo(st.dari, st.kDari);
-      if (sk != null && n > sk) { el.className = 'note warn'; el.innerHTML = ic('alert') + '<div>Nominal melebihi sisa kas ' + e(U.namaKelompok(st.kDari)) + ' (' + U.rp(sk) + '). Tetap boleh, tetapi kas itu akan minus.</div>'; return; }
-      el.className = 'note info'; el.innerHTML = ic('shield') + '<div>Saldo ' + U.DOMPET_LABEL[st.dari] + (st.kDari ? ' › ' + e(U.namaKelompok(st.kDari)) : '') + ' berkurang, ' + U.DOMPET_LABEL[st.ke] + ' bertambah. Tercatat sebagai kewajiban yang wajib dikembalikan.</div>';
+      const nmKas = st.dari === 'Pribadi' ? (st.kDari === 'ATM' ? 'ATM' : 'Tunai') : U.namaKelompok(st.kDari);
+      if (sk != null && n > sk) { el.className = 'note warn'; el.innerHTML = ic('alert') + '<div>Nominal melebihi sisa kas ' + e(nmKas) + ' (' + U.rp(sk) + '). Tetap boleh, tetapi kas itu akan minus.</div>'; return; }
+      el.className = 'note info'; el.innerHTML = ic('shield') + '<div>Saldo ' + U.DOMPET_LABEL[st.dari] + (st.kDari ? ' › ' + e(nmKas) : '') + ' berkurang, ' + U.DOMPET_LABEL[st.ke] + ' bertambah. Tercatat sebagai kewajiban yang wajib dikembalikan.</div>';
     }
     m.$('#pjDari').onchange = function () { st.dari = this.value; st.kDari = ''; kas(); info(); };
     m.$('#pjKe').onchange = function () { st.ke = this.value; st.kKe = ''; kas(); pakaiBox(); info(); };
@@ -607,16 +698,22 @@
         '<div style="margin-top:14px">' + amountField('hNom', h.nominal, 'Nominal hutang') + '</div>' +
         '<div class="grid g-2" style="gap:12px">' + dateField('hTgl', h.tanggal || b.hariIni, 'Tanggal') + '<div style="margin-top:14px">' + dateField('hJt', h.jatuhTempo || '', 'Jatuh tempo (opsional)') + '</div></div>' +
         '<div class="set-row" style="margin-top:8px"><div class="txt"><b>Uangnya masuk ke saldo Pribadi</b><small>Aktifkan jika uang pinjaman diterima tunai (bukan pemasukan)</small></div><label class="switch"><input type="checkbox" id="hMasuk" ' + (h.id ? (h.masukSaldo ? 'checked' : '') : 'checked') + '><span></span></label></div>' +
+        '<div id="hAkunBox">' + akunSeg('hAkun', h.akun || 'Tunai', 'Uangnya masuk ke') + '</div>' +
         '<div class="field"><label class="label">Catatan</label><input class="input" id="hCat" value="' + e(h.catatan || '') + '" placeholder="opsional"></div>' +
         buktiField('hBukti', h.adaBukti ? 'Ganti foto bukti' : 'Foto bukti (kuitansi, chat, catatan)'),
       foot: (h.id && h.terbayar === 0 ? '<button class="btn btn-danger-out" id="hDel">' + ic('trash') + 'Hapus</button>' : '<button class="btn btn-sec" data-close>Batal</button>') + '<button class="btn btn-gold" id="hSave">' + ic('save') + 'Simpan</button>'
     });
     const getNom = bindAmount(m, 'hNom'); bindDate(m, 'hTgl'); bindDate(m, 'hJt');
     const hBukti = bindBukti(m, 'hBukti');
+    let hAkun = h.akun || 'Tunai';
+    bindAkunSeg(m, 'hAkun', function (a) { hAkun = a; });
+    const hm = m.$('#hMasuk'), hab = m.$('#hAkunBox');
+    const togAkun = function () { hab.style.display = hm.checked ? '' : 'none'; };
+    hm.addEventListener('change', togAkun); togAkun();
     if (!h.id) bindScanBukti(m, { id: 'h', konteks: 'hutang', bukti: hBukti, nominal: 'hNom', tanggal: 'hTgl',
       isi: function (r) { const n = m.$('#hNama'), c = m.$('#hCat'); if (!n.value.trim() && r.pihak) n.value = r.pihak; if (!c.value.trim() && r.keterangan) c.value = r.keterangan; } });
     m.$('#hSave').onclick = async function () {
-      const d = { id: h.id, nama: m.$('#hNama').value.trim(), nominal: getNom(), tanggal: m.$('#hTgl').value, jatuhTempo: m.$('#hJt').value, masukSaldo: m.$('#hMasuk').checked, catatan: m.$('#hCat').value };
+      const d = { id: h.id, nama: m.$('#hNama').value.trim(), nominal: getNom(), tanggal: m.$('#hTgl').value, jatuhTempo: m.$('#hJt').value, masukSaldo: m.$('#hMasuk').checked, catatan: m.$('#hCat').value, akun: hAkun };
       if (!d.nama) return UI.toast('Isi nama pihak.', 'error');
       if (!d.nominal) return UI.toast('Isi nominal.', 'error');
       if (hBukti.val) d.bukti = { mime: hBukti.val.mime, data: hBukti.val.data };
@@ -639,7 +736,7 @@
       body: scanBox('bh', 'Baca foto bukti bayar', 'Foto transfer / kuitansi — AI mengisi nominal &amp; tanggal.') + amountField('bhNom', h.sisa, 'Nominal pembayaran') +
         '<div class="sect-title">Dibebankan ke pos anggaran</div><div class="choice-grid c3">' + ['Kebutuhan Primer', 'Investasi Otak/Tubuh', 'Jajanan'].map(function (k) {
           return '<button class="choice ' + (k === pos ? 'on' : '') + '" data-k="' + k + '"><b>' + U.POS_SINGKAT[k] + '</b><small>' + Math.round((b.anggaran.find(function (a) { return a.kategori === k; }) || {}).pct || 0) + '% terpakai</small><span class="chk">' + ic('checkCircle', 'sm') + '</span></button>';
-        }).join('') + '</div>' + dateField('bhTgl', b.hariIni, 'Tanggal bayar') +
+        }).join('') + '</div>' + akunSeg('bhAkun', U.store.get('sm_akun', 'Tunai'), 'Dibayar dari') + dateField('bhTgl', b.hariIni, 'Tanggal bayar') +
         '<div class="field"><label class="label">Catatan</label><input class="input" id="bhCat" placeholder="opsional"></div>' +
         buktiField('bhBukti', 'Foto bukti pembayaran') +
         '<div class="note info" style="margin-top:12px">' + ic('info') + '<div>Pembayaran dicatat sebagai pengeluaran dompet Pribadi (PRD). Saldo Pribadi saat ini ' + U.rp(b.saldo.Pribadi) + '.</div></div>',
@@ -650,13 +747,16 @@
     bindScanBukti(m, { id: 'bh', konteks: 'bayarHutang', bukti: bhBukti, nominal: 'bhNom', tanggal: 'bhTgl',
       isi: function (r) { const c = m.$('#bhCat'); if (!c.value.trim() && r.keterangan) c.value = r.keterangan; } });
     m.$$('[data-k]').forEach(function (x) { x.onclick = function () { pos = x.dataset.k; m.$$('[data-k]').forEach(function (c) { c.classList.toggle('on', c === x); }); }; });
+    let bhAkun = U.store.get('sm_akun', 'Tunai');
+    bindAkunSeg(m, 'bhAkun', function (a) { bhAkun = a; });
     m.$('#bhSave').onclick = async function () {
       const n = getNom();
       if (!n) return UI.toast('Isi nominal.', 'error');
       if (n > h.sisa) return UI.toast('Melebihi sisa hutang.', 'error');
       UI.busy(this, true);
       try {
-        const r = await API.call('bayarHutang', { id: h.id, nominal: n, kategori: pos, tanggal: m.$('#bhTgl').value, catatan: m.$('#bhCat').value, bukti: bhBukti.val ? { mime: bhBukti.val.mime, data: bhBukti.val.data } : undefined });
+        const r = await API.call('bayarHutang', { id: h.id, nominal: n, kategori: pos, tanggal: m.$('#bhTgl').value, catatan: m.$('#bhCat').value, akun: bhAkun, bukti: bhBukti.val ? { mime: bhBukti.val.mime, data: bhBukti.val.data } : undefined });
+
         m.close(); UI.toast(r.lunas ? 'Alhamdulillah, hutang lunas!' : 'Pembayaran hutang tercatat.'); if (r.lunas) UI.confetti();
         if (r.peringatan) App.tampilPeringatan(r.peringatan);
         await App.refresh(true);

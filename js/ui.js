@@ -242,6 +242,7 @@
     if (t.jenis === 'Pemasukan') return { ik: t.dompet === 'Terop' ? 'tent' : t.dompet === 'Pondok' ? 'landmark' : 'banknote', tone: 't-em' };
     if (t.refTipe === 'hutang') return { ik: 'handCoins', tone: 't-coral' };
     if (t.refTipe === 'penyesuaian') return { ik: 'scale', tone: 't-navy' };
+    if (t.refTipe === 'pindah') return { ik: 'swap', tone: 't-navy' };
     if (t.refTipe === 'piutang') return { ik: 'heart', tone: 't-violet' };
     if (t.dompet === 'Pribadi') return { ik: U.POS_IKON[t.kategori] || 'list', tone: t.kategori === 'Tabungan' ? 't-gold' : t.kategori === 'Sedekah' ? 't-violet' : 't-coral' };
     return { ik: t.dompet === 'Terop' ? 'truck' : 'package', tone: 't-coral' };
