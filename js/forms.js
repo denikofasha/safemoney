@@ -339,6 +339,11 @@
           if (!ok) return;
         }
       }
+      const atmBisa = st.dompet === 'Pribadi' && st.akun === 'ATM' && b.akun && b.akun.aktif && b.akun.ATMBisa != null ? b.akun.ATMBisa : null;
+      if (st.jenis === 'Pengeluaran' && !isEdit && atmBisa != null && nominal > atmBisa && nominal <= b.akun.ATM) {
+        const ok = await UI.confirm({ title: 'Melewati saldo minimal ATM', html: 'Saldo ATM ' + U.rp(b.akun.ATM) + ', tetapi yang bisa dipakai hanya <b>' + U.rp(atmBisa) + '</b> (saldo minimal ' + U.rp(b.akun.minimum) + ' harus tetap mengendap). Tetap simpan?', ok: 'Tetap Simpan', icon: 'landmark', tone: 't-gold', btn: 'btn-navy' });
+        if (!ok) return;
+      }
       const akunSaldo = st.dompet === 'Pribadi' && b.akun && b.akun.aktif ? b.akun[st.akun] : null;
       if (st.jenis === 'Pengeluaran' && !isEdit && akunSaldo != null && nominal > akunSaldo && nominal <= b.saldo.Pribadi) {
         const ok = await UI.confirm({ title: 'Uang ' + st.akun + ' tidak cukup', html: 'Saldo ' + st.akun + ' tercatat <b>' + U.rp(akunSaldo) + '</b>. Kalau Anda baru ' + (st.akun === 'Tunai' ? 'tarik tunai dari ATM' : 'setor ke ATM') + ', catat dulu lewat <b>Pindah uang</b>. Tetap simpan?', ok: 'Tetap Simpan', icon: 'wallet', tone: 't-gold', btn: 'btn-navy' });
@@ -382,7 +387,8 @@
       title: 'Pindah Uang', icon: 'swap', tone: 't-navy', sub: 'Antara Tunai dan ATM — total Pribadi tetap',
       body: '<div class="seg" id="puArah"><button data-dari="ATM" class="' + (dari === 'ATM' ? 'on in-on' : '') + '">' + ic('arrowDown', 'sm') + 'Tarik tunai</button>' +
         '<button data-dari="Tunai" class="' + (dari === 'Tunai' ? 'on in-on' : '') + '">' + ic('arrowUp', 'sm') + 'Setor ke ATM</button></div>' +
-        '<div class="kv" style="margin-top:14px"><span>Saldo Tunai</span><b class="num">' + U.rp(a.Tunai) + '</b><span>Saldo ATM</span><b class="num">' + U.rp(a.ATM) + '</b></div>' +
+        '<div class="kv" style="margin-top:14px"><span>Saldo Tunai</span><b class="num">' + U.rp(a.Tunai) + '</b><span>Saldo ATM</span><b class="num">' + U.rp(a.ATM) + '</b>' +
+        (a.minimum ? '<span>Bisa ditarik</span><b class="num">' + U.rp(a.ATMBisa) + ' <small class="muted">(minimal ' + U.rpShort(a.minimum) + ' mengendap)</small></b>' : '') + '</div>' +
         '<div style="margin-top:14px">' + amountField('puNom', pre.nominal || 0, 'Nominal dipindah') + '</div>' +
         '<div class="field"><label class="label">Biaya admin <span class="hint">opsional · dicatat ke pos Kebutuhan Primer</span></label><div class="input-pre"><span>Rp</span><input class="input num" id="puBiaya" inputmode="numeric" placeholder="0"></div></div>' +
         dateField('puTgl', pre.tanggal || b.hariIni, 'Tanggal') +
@@ -396,6 +402,10 @@
     m.$('#puSave').onclick = async function () {
       const n = getNom();
       if (!n) return UI.toast('Isi nominal.', 'error');
+      if (dari === 'ATM' && a.ATMBisa != null && n > a.ATMBisa) {
+        const ok = await UI.confirm({ title: 'Melewati saldo minimal ATM', html: 'Yang bisa ditarik hanya <b>' + U.rp(a.ATMBisa) + '</b> (saldo minimal ' + U.rp(a.minimum) + '). Tetap catat ' + U.rp(n) + '?', ok: 'Tetap Simpan', icon: 'landmark', tone: 't-gold', btn: 'btn-navy' });
+        if (!ok) return;
+      }
       UI.busy(this, true);
       try {
         await API.call('pindahUang', { dari: dari, ke: dari === 'ATM' ? 'Tunai' : 'ATM', nominal: n, biaya: U.parseNum(bi.value), tanggal: m.$('#puTgl').value, catatan: m.$('#puCat').value.trim() });
@@ -528,7 +538,7 @@
     pre = pre || {};
     const b = S.boot;
     const st = { dari: pre.dari || 'Pondok', ke: pre.ke || 'Pribadi', kDari: pre.kelompokDari || '', kKe: pre.kelompokKe || '', pakai: false, pos: '', katW: '' };
-    if (st.dari === st.ke) st.ke = st.dari === 'Pribadi' ? 'Pondok' : 'Pribadi';
+    if (st.dari === st.ke && (st.dari === 'Pribadi' || st.kDari === st.kKe)) st.ke = st.dari === 'Pribadi' ? 'Pondok' : 'Pribadi';
     const opt = function (sel) { return ['Pribadi', 'Pondok', 'Terop'].map(function (d) { return '<option value="' + d + '" ' + (d === sel ? 'selected' : '') + '>' + U.DOMPET_LABEL[d] + ' (saldo ' + U.rp(b.saldo[d]) + ')</option>'; }).join(''); };
     const jt = b.periode.id === b.periodeIni ? b.periode.akhir : (U.periodOf(b.hariIni) || b.periode).akhir;
     const m = UI.modal({
@@ -555,7 +565,7 @@
       m.$('#pjKasKe').innerHTML = kasField('pjKKe', st.ke, st.kKe, 'Masuk ke kas', false);
       const a = m.$('#pjKDari'), k = m.$('#pjKKe');
       if (a) a.onchange = function () { st.kDari = a.value; info(); };
-      if (k) k.onchange = function () { st.kKe = k.value; };
+      if (k) k.onchange = function () { st.kKe = k.value; info(); };
     }
     function pakaiBox() {
       const box = m.$('#pjPakaiBox');
@@ -577,12 +587,12 @@
     }
     function info() {
       const n = getNom(), el = m.$('#pjInfo');
-      if (st.dari === st.ke) { el.className = 'note danger'; el.innerHTML = ic('alert') + '<div>Dompet sumber dan penerima tidak boleh sama.</div>'; return; }
+      if (st.dari === st.ke && (st.dari === 'Pribadi' || st.kDari === st.kKe)) { el.className = 'note danger'; el.innerHTML = ic('alert') + '<div>' + (st.dari === 'Pribadi' ? 'Untuk Tunai ↔ ATM pakai <b>Pindah uang</b> di Beranda.' : 'Pilih anggaran asal dan tujuan yang berbeda (pinjam antar anggaran).') + '</div>'; return; }
       if (n > b.saldo[st.dari]) { el.className = 'note danger'; el.innerHTML = ic('alert') + '<div>Nominal melebihi saldo ' + U.DOMPET_LABEL[st.dari] + ' (' + U.rp(b.saldo[st.dari]) + ').</div>'; return; }
       const sk = kasSaldo(st.dari, st.kDari);
       const nmKas = st.dari === 'Pribadi' ? (st.kDari === 'ATM' ? 'ATM' : 'Tunai') : U.namaKelompok(st.kDari);
       if (sk != null && n > sk) { el.className = 'note warn'; el.innerHTML = ic('alert') + '<div>Nominal melebihi sisa kas ' + e(nmKas) + ' (' + U.rp(sk) + '). Tetap boleh, tetapi kas itu akan minus.</div>'; return; }
-      el.className = 'note info'; el.innerHTML = ic('shield') + '<div>Saldo ' + U.DOMPET_LABEL[st.dari] + (st.kDari ? ' › ' + e(nmKas) : '') + ' berkurang, ' + U.DOMPET_LABEL[st.ke] + ' bertambah. Tercatat sebagai kewajiban yang wajib dikembalikan.</div>';
+      el.className = 'note info'; el.innerHTML = ic('shield') + '<div>Saldo ' + U.DOMPET_LABEL[st.dari] + (st.kDari ? ' › ' + e(nmKas) : '') + ' berkurang, ' + U.DOMPET_LABEL[st.ke] + (st.kKe ? ' › ' + e(st.ke === 'Pribadi' ? 'ATM' : U.namaKelompok(st.kKe)) : '') + ' bertambah. Tercatat sebagai kewajiban yang wajib dikembalikan.</div>';
     }
     m.$('#pjDari').onchange = function () { st.dari = this.value; st.kDari = ''; kas(); info(); };
     m.$('#pjKe').onchange = function () { st.ke = this.value; st.kKe = ''; kas(); pakaiBox(); info(); };
@@ -591,7 +601,8 @@
     m.$('#pjSave').onclick = async function () {
       const d = { dari: st.dari, ke: st.ke, nominal: getNom(), alasan: m.$('#pjAlasan').value.trim(), tanggal: m.$('#pjTgl').value, jatuhTempo: m.$('#pjJt').value,
         kelompokDari: st.kDari, kelompokKe: st.kKe };
-      if (d.dari === d.ke) return UI.toast('Dompet tidak boleh sama.', 'error');
+      if (d.dari === d.ke && (d.dari === 'Pribadi' || d.kelompokDari === d.kelompokKe)) return UI.toast(d.dari === 'Pribadi' ? 'Untuk Tunai ↔ ATM pakai Pindah uang.' : 'Pilih anggaran asal dan tujuan yang berbeda.', 'error');
+
       if (!d.nominal) return UI.toast('Isi nominal.', 'error');
       if (d.nominal > b.saldo[d.dari]) return UI.toast('Nominal melebihi saldo sumber.', 'error');
       if (d.dari !== 'Pribadi' && daftarKas(d.dari).length && !d.kelompokDari) return UI.toast('Pilih kas asal uangnya (' + (d.dari === 'Pondok' ? 'anggaran pondok' : 'kepanitiaan') + ').', 'error');

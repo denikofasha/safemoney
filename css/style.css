@@ -968,3 +968,13 @@ button.tag-glass:hover { background: rgba(255, 255, 255, .18); }
 .msg .meta.dim { opacity: .6; }
 @media (max-width: 480px) { .lab-model { max-width: 130px; } }
 @media (max-width: 480px) { .lab-merek { font-size: 0; gap: 0; flex: 0 0 auto; } .lab-model { max-width: 170px; margin-right: auto; } }
+
+/* v1.7.1 — Cocokkan per anggaran, ATM bisa dipakai */
+.ck-rinci { display: inline-flex; align-items: center; gap: 4px; font-size: 12.5px; margin-top: 4px; }
+.ck-grup { border-bottom: 0; padding-bottom: 4px; }
+.ck-grup .ck-rinci { margin-left: auto; }
+.ck-sub { padding: 8px 0 8px 22px; }
+.ck-sub .ck-lbl { min-width: 188px; }
+.ck-garis { width: 14px; height: 22px; border-left: 2px solid var(--border); border-bottom: 2px solid var(--border); border-bottom-left-radius: 8px; margin-top: -14px; flex: none; }
+.akun-row small.muted-w { margin-left: 4px; font-size: 11.5px; }
+@media (max-width: 767px) { .ck-sub { padding-left: 14px; } .ck-grup { flex-direction: row; align-items: center; } }

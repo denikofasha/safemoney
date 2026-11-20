@@ -86,7 +86,7 @@
         '<div class="card balance span-7"><div class="row"><span class="eyebrow">' + ic('landmark', 'sm') + ' Uang Pribadi di Tangan</span><button class="tag-glass" data-go="cocokkan" title="Cocokkan dengan uang nyata">' + ic('scale', 'sm') + 'Cocokkan</button></div>' +
         '<div class="big num"><span data-count="' + b.saldo.Pribadi + '">' + U.rp(b.saldo.Pribadi) + '</span><small>IDR</small></div>' +
         (b.akun && b.akun.aktif
-          ? '<div class="akun-row"><span>' + ic('wallet', 'sm') + 'Tunai <b class="num">' + U.rp(b.akun.Tunai) + '</b></span><span>' + ic('landmark', 'sm') + 'ATM <b class="num">' + U.rp(b.akun.ATM) + '</b></span>' +
+          ? '<div class="akun-row"><span>' + ic('wallet', 'sm') + 'Tunai <b class="num">' + U.rp(b.akun.Tunai) + '</b></span><span>' + ic('landmark', 'sm') + 'ATM <b class="num">' + U.rp(b.akun.ATM) + '</b>' + (b.akun.minimum ? '<small class="muted-w">· bisa dipakai ' + U.rp(b.akun.ATMBisa) + '</small>' : '') + '</span>' +
             '<button class="tag-glass" data-act="pindah-uang">' + ic('swap', 'sm') + 'Pindah uang</button></div>'
           : '<div class="akun-row"><span class="muted-w">Semua uang Pribadi dihitung Tunai.</span><button class="tag-glass" data-act="saldo-atm">' + ic('landmark', 'sm') + 'Pisahkan saldo ATM</button></div>') +
         (pos.kembalikan || pos.diLuar ? '<div class="posisi">' +
@@ -750,6 +750,7 @@
         '<div class="field"><label class="label">Ambang peringatan "hampir penuh" <span class="hint" id="ambLbl">' + p.ambang_peringatan + '%</span></label><input type="range" class="range" id="sAmbang" min="50" max="99" value="' + p.ambang_peringatan + '"></div>' +
         '<div class="field"><label class="label">' + ic('heart', 'sm') + ' Minimal sedekah per bulan <span class="hint">% dari ihsan; pos Sedekah tidak boleh di bawah ini</span></label><div class="input-pre" style="max-width:160px"><input class="input num" id="sMinSed" inputmode="numeric" style="padding:0 34px 0 14px;text-align:right" value="' + e(p.min_sedekah || '5') + '"><span style="left:auto;right:14px">%</span></div>' +
         '<div class="small muted" style="margin-top:6px" id="sMinSedInfo"></div></div>' +
+        '<div class="field"><label class="label">' + ic('landmark', 'sm') + ' Saldo minimal ATM <span class="hint">uang yang harus tetap mengendap di rekening, tidak bisa ditarik</span></label><div class="input-pre" style="max-width:220px"><span>Rp</span><input class="input num" id="sAtmMin" inputmode="numeric" value="' + U.fmtInput(p.atm_saldo_minimum || '50000') + '"></div></div>' +
         '<div class="row" style="justify-content:flex-end;margin-top:18px"><button class="btn btn-gold" id="sSimpan">' + ic('save') + 'Simpan</button></div></div>';
     }
     if (tab === 'keamanan') {
@@ -826,7 +827,7 @@
         '<div class="row btn-row" style="justify-content:flex-end;gap:10px;margin-top:14px">' + (ai.agen.aktif ? '<button class="btn btn-danger-out" id="agCabut">' + ic('xCircle', 'sm') + 'Cabut kunci</button>' : '') +
         '<button class="btn btn-navy" id="agBuat">' + ic('key') + (ai.agen.aktif ? 'Buat kunci baru' : 'Buat kunci Jarvis') + '</button></div></div>';
     }
-    return '<div class="card"><div class="center" style="padding:10px 0 16px"><img src="assets/logo-mark.png" alt="" style="width:84px;margin:0 auto 10px"><h2 style="margin:0">Safe<span style="color:var(--amber-ink)">Money</span></h2><div class="muted small">Versi 1.7.0 · Frontend GitHub Pages + Google Apps Script</div></div>' +
+    return '<div class="card"><div class="center" style="padding:10px 0 16px"><img src="assets/logo-mark.png" alt="" style="width:84px;margin:0 auto 10px"><h2 style="margin:0">Safe<span style="color:var(--amber-ink)">Money</span></h2><div class="muted small">Versi 1.7.1 · Frontend GitHub Pages + Google Apps Script</div></div>' +
       '<div class="set-row"><div class="txt"><b>Data tersimpan di</b><small>Google Sheets "SafeMoney_DB" & folder Drive "SafeMoney" milik Anda</small></div></div>' +
       '<div class="set-row"><div class="txt"><b>Lupa PIN?</b><small>Jalankan fungsi resetPin() di editor Apps Script, lalu buat PIN baru di aplikasi.</small></div></div>' +
       '<div class="set-row"><div class="txt"><b>Muat ulang data</b><small>Ambil data terbaru dari server</small></div><button class="btn btn-sm btn-sec" id="reload">' + ic('refresh', 'sm') + 'Muat ulang</button></div>' +
@@ -837,13 +838,15 @@
       let basis = S.boot.pengaturan.basis_anggaran;
       U.$$('[data-basis]', root).forEach(function (b) { b.onclick = function () { basis = b.dataset.basis; U.$$('[data-basis]', root).forEach(function (x) { x.classList.toggle('on', x === b); }); }; });
       const ih = U.$('#sIhsan', root); ih.oninput = function () { ih.value = U.fmtInput(ih.value); };
+      const atmMin = U.$('#sAtmMin', root); atmMin.oninput = function () { atmMin.value = U.fmtInput(atmMin.value) || '0'; };
       const ms = U.$('#sMinSed', root), msi = U.$('#sMinSedInfo', root);
       const infoMs = function () { const v = U.parseNum(ms.value); msi.textContent = 'Ihsan ' + U.rp(U.parseNum(ih.value)) + ' → minimal sedekah ' + U.rp(U.parseNum(ih.value) * v / 100) + ' per bulan.'; };
       ms.oninput = function () { ms.value = String(Math.min(50, U.parseNum(ms.value))); infoMs(); }; ih.addEventListener('input', infoMs); infoMs();
       const am = U.$('#sAmbang', root); UI.rangeFill(am); am.oninput = function () { UI.rangeFill(am); U.$('#ambLbl', root).textContent = am.value + '%'; };
       U.$('#sSimpan', root).onclick = async function () {
         UI.busy(this, true);
-        try { await API.call('simpanPengaturan', { nama_pemilik: U.$('#sNama', root).value, ihsan_bulanan: U.parseNum(ih.value), basis_anggaran: basis, ambang_peringatan: am.value, min_sedekah: U.parseNum(U.$('#sMinSed', root).value) }); UI.toast('Pengaturan tersimpan.'); await App.refresh(true); }
+        try { await API.call('simpanPengaturan', { nama_pemilik: U.$('#sNama', root).value, ihsan_bulanan: U.parseNum(ih.value), basis_anggaran: basis, ambang_peringatan: am.value, min_sedekah: U.parseNum(U.$('#sMinSed', root).value), atm_saldo_minimum: U.parseNum(U.$('#sAtmMin', root).value) });
+ UI.toast('Pengaturan tersimpan.'); await App.refresh(true); }
         catch (err) { UI.toast(err.message, 'error'); UI.busy(this, false); }
       };
     } else if (tab === 'keamanan') {

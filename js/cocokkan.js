@@ -10,28 +10,59 @@
   const PECAHAN = [100000, 50000, 20000, 10000, 5000, 2000, 1000, 500, 200, 100];
 
   function st() {
-    if (!S.cocok) S.cocok = { mode: 'dana', nyata: {}, gabungan: '', hasil: null, ai: null, kunci: '', sibuk: false, aiSibuk: false };
+    if (!S.cocok) S.cocok = { mode: 'dana', nyata: {}, gabungan: '', hasil: null, ai: null, kunci: '', sibuk: false, aiSibuk: false, rinci: {} };
+    if (!S.cocok.rinci) S.cocok.rinci = {};
     return S.cocok;
   }
-  function kunciSaldo() { return JSON.stringify(S.boot.saldo) + '|' + JSON.stringify(S.boot.akun || {}) + '|' + (S.boot.piutang || []).length + '|' + S.boot.pinjaman.length; }
-  /** Baris yang bisa diisi: bila ATM sudah dipisah, Pribadi dicek per akun (Tunai & ATM). */
+  function kunciSaldo() { return JSON.stringify(S.boot.saldo) + '|' + JSON.stringify(S.boot.akun || {}) + '|' + JSON.stringify((S.boot.kelompokDana || []).map(function (k) { return k.saldo; })) + '|' + (S.boot.piutang || []).length + '|' + S.boot.pinjaman.length; }
+  /** Baris utama: bila ATM sudah dipisah, Pribadi dicek per akun (Tunai & ATM). */
   function unitAktif() {
     return S.boot.akun && S.boot.akun.aktif ? ['Tunai', 'ATM', 'Pondok', 'Terop'] : DOMPET;
+  }
+  /** Anggaran pondok / kepanitiaan terop yang bisa dicek terpisah: kunci "Pondok|<id>". */
+  function kelompokUnit(d) {
+    return (S.boot.kelompokDana || []).filter(function (k) { return k.dompet === d && (k.status === 'Aktif' || k.saldo !== 0 || k.tanpa); })
+      .filter(function (k) { return !k.tanpa || k.saldo !== 0; })
+      .map(function (k) { return { key: d + '|' + (k.id || ''), nama: k.nama, saldo: k.saldo }; });
+  }
+  /** Semua kunci yang ikut dikirim (anggaran menggantikan total dompet bila dirinci). */
+  function kunciDikirim(c) {
+    const out = [];
+    unitAktif().forEach(function (d) {
+      if (c.rinci[d]) kelompokUnit(d).forEach(function (k) { out.push(k.key); });
+      else out.push(d);
+    });
+    return out;
+  }
+  function labelKunci(k, h) {
+    if (h && h.label && h.label[k]) return h.label[k];
+    if (UNIT[k]) return UNIT[k].label;
+    const p = String(k).split('|'), kel = (S.boot.kelompokDana || []).find(function (x) { return x.dompet === p[0] && (x.id || '') === p[1]; });
+    return U.DOMPET_LABEL[p[0]] + ' › ' + (kel ? kel.nama : '?');
   }
   const UNIT = {
     Tunai: { label: 'Pribadi › Tunai', ik: 'wallet', tone: 't-navy' }, ATM: { label: 'Pribadi › ATM', ik: 'landmark', tone: 't-navy' },
     Pribadi: { label: 'Pribadi', ik: 'wallet', tone: 't-navy' }, Pondok: { label: 'Dana Pondok', ik: 'building', tone: 't-em' }, Terop: { label: 'Dana Terop', ik: 'tent', tone: 't-gold' }
   };
-  function catatanUnit(k) { return k === 'Tunai' || k === 'ATM' ? (S.boot.akun || {})[k] || 0 : S.boot.saldo[k]; }
+  function catatanUnit(k) {
+    if (k === 'Tunai' || k === 'ATM') return (S.boot.akun || {})[k] || 0;
+    if (String(k).indexOf('|') > 0) { const ku = kelompokUnit(k.split('|')[0]).find(function (x) { return x.key === k; }); return ku ? ku.saldo : 0; }
+    return S.boot.saldo[k];
+  }
   function payload(c) {
     if (c.mode === 'gabung') return { gabungan: U.parseNum(c.gabungan) };
     const n = {};
-    unitAktif().forEach(function (d) { if (c.nyata[d] !== undefined && c.nyata[d] !== '') n[d] = U.parseNum(c.nyata[d]); });
+    kunciDikirim(c).forEach(function (d) { if (c.nyata[d] !== undefined && c.nyata[d] !== '') n[d] = U.parseNum(c.nyata[d]); });
     return { nyata: n };
   }
   function adaInput(c) {
     if (c.mode === 'gabung') return c.gabungan !== '';
-    return unitAktif().some(function (d) { return c.nyata[d] !== undefined && c.nyata[d] !== ''; });
+    return kunciDikirim(c).some(function (d) { return c.nyata[d] !== undefined && c.nyata[d] !== ''; });
+  }
+  function barisInput(d, v, nama, catatan, sub) {
+    return '<div class="ck-in"><div class="input-pre"><span>Rp</span><input class="input num" inputmode="numeric" data-nyata="' + e(d) + '" placeholder="kosong = tidak dicek" value="' + (v !== undefined && v !== '' ? U.fmtInput(v) : '') + '"></div>' +
+      '<button class="btn btn-sm btn-ghost" data-pecahan="' + e(d) + '" title="Hitung per lembar">' + ic('banknote', 'sm') + '<span class="hide-m">Hitung</span></button>' +
+      '<button class="btn btn-sm btn-ghost" data-sama="' + e(d) + '" title="Isi sama dengan catatan">=</button></div>';
   }
   function pillSelisih(s) {
     if (!s) return '<span class="pill p-aman">' + ic('checkCircle') + 'Cocok</span>';
@@ -52,12 +83,22 @@
       const h = c.hasil;
 
       const inputDana = unitAktif().map(function (d) {
-        const v = c.nyata[d];
+        const bisaRinci = (d === 'Pondok' || d === 'Terop') && kelompokUnit(d).length > 0;
+        const tombolRinci = bisaRinci ? '<button class="link ck-rinci" data-rinci="' + d + '">' + ic(c.rinci[d] ? 'chevronDown' : 'chevronRight', 'sm') + (c.rinci[d] ? 'Gabungkan' : 'Rinci per ' + (d === 'Pondok' ? 'anggaran' : 'kepanitiaan')) + '</button>' : '';
+        if (bisaRinci && c.rinci[d]) {
+          const subs = kelompokUnit(d);
+          let tot = 0, ada = false;
+          subs.forEach(function (k) { const v = c.nyata[k.key]; if (v !== undefined && v !== '') { tot += U.parseNum(v); ada = true; } });
+          return '<div class="ck-row ck-grup"><div class="ck-lbl"><span class="ic-tile ' + UNIT[d].tone + '">' + ic(UNIT[d].ik) + '</span>' +
+            '<div><b>' + UNIT[d].label + '</b><small>Catatan: <span class="num">' + U.rp(catatanUnit(d)) + '</span>' + (ada ? ' · isian: <b class="num">' + U.rp(tot) + '</b>' : '') + '</small></div></div>' + tombolRinci + '</div>' +
+            subs.map(function (k) {
+              return '<div class="ck-row ck-sub"><div class="ck-lbl"><span class="ck-garis"></span><div><b>' + e(k.nama) + '</b><small>Catatan: <span class="num">' + U.rp(k.saldo) + '</span></small></div></div>' + barisInput(k.key, c.nyata[k.key]) + '</div>';
+            }).join('');
+        }
         return '<div class="ck-row"><div class="ck-lbl"><span class="ic-tile ' + UNIT[d].tone + '">' + ic(UNIT[d].ik) + '</span>' +
-          '<div><b>' + UNIT[d].label + '</b><small>Catatan: <span class="num">' + U.rp(catatanUnit(d)) + '</span></small></div></div>' +
-          '<div class="ck-in"><div class="input-pre"><span>Rp</span><input class="input num" inputmode="numeric" data-nyata="' + d + '" placeholder="kosong = tidak dicek" value="' + (v !== undefined && v !== '' ? U.fmtInput(v) : '') + '"></div>' +
-          '<button class="btn btn-sm btn-ghost" data-pecahan="' + d + '" title="Hitung per lembar">' + ic('banknote', 'sm') + '<span class="hide-m">Hitung</span></button>' +
-          '<button class="btn btn-sm btn-ghost" data-sama="' + d + '" title="Isi sama dengan catatan">=</button></div></div>';
+          '<div><b>' + UNIT[d].label + '</b><small>Catatan: <span class="num">' + U.rp(catatanUnit(d)) + '</span>' +
+          (d === 'ATM' && S.boot.akun && S.boot.akun.minimum ? ' · min. mengendap ' + U.rpShort(S.boot.akun.minimum) : '') + '</small>' + tombolRinci + '</div></div>' +
+          barisInput(d, c.nyata[d]) + '</div>';
       }).join('');
 
       const inputGabung = '<div class="ck-row"><div class="ck-lbl"><span class="ic-tile t-navy">' + ic('wallet') + '</span><div><b>Total semua uang</b><small>Catatan gabungan: <span class="num">' + U.rp(totalCatatan) + '</span></small></div></div>' +
@@ -71,7 +112,7 @@
         const baris = h.gabungan
           ? '<div class="ck-sum-row"><b>Semua dana</b><span class="num">' + U.rp(h.nyata.gabungan) + '</span><span class="num muted">' + U.rp(totalCatatan) + '</span>' + pillSelisih(h.totalSelisih) + '</div>'
           : h.dicek.map(function (d) {
-            return '<div class="ck-sum-row"><b>' + e((h.label && h.label[d]) || (UNIT[d] || {}).label || d) + '</b><span class="num">' + U.rp(h.nyata[d]) + '</span><span class="num muted">' + U.rp(h.catatan[d]) + '</span>' + pillSelisih(h.selisih[d]) + '</div>';
+            return '<div class="ck-sum-row"><b>' + e(labelKunci(d, h)) + '</b><span class="num">' + U.rp(h.nyata[d]) + '</span><span class="num muted">' + U.rp(h.catatan[d]) + '</span>' + pillSelisih(h.selisih[d]) + '</div>';
           }).join('');
         hasil = '<div class="card ck-hasil' + (h.cocok ? ' ok' : '') + '" style="margin-top:22px"><div class="card-head">' + ic(h.cocok ? 'checkCircle' : 'scale') + '<h3>' + (h.cocok ? 'Alhamdulillah, semuanya cocok' : 'Hasil pencocokan') + '</h3>' + (c.sibuk ? '<span class="small muted" style="margin-left:auto">' + ic('loader', 'sm spin') + ' menghitung ulang…</span>' : '') + '</div>' +
           '<div class="ck-sum"><div class="ck-sum-row head"><span>Dana</span><span>Uang nyata</span><span>Catatan</span><span>Selisih</span></div>' + baris + '</div>' +
@@ -116,9 +157,10 @@
       const g = U.$('#ckGabung', root);
       if (g) g.addEventListener('input', function () { const n = U.parseNum(g.value); g.value = g.value.trim() === '' ? '' : U.fmtInput(n) || '0'; c.gabungan = g.value === '' ? '' : n; });
       U.$$('[data-sama]', root).forEach(function (x) { x.onclick = function () { c.nyata[x.dataset.sama] = catatanUnit(x.dataset.sama); App.render(); }; });
+      U.$$('[data-rinci]', root).forEach(function (x) { x.onclick = function () { const d = x.dataset.rinci; c.rinci[d] = !c.rinci[d]; c.hasil = null; App.render(); }; });
       U.$$('[data-pecahan]', root).forEach(function (x) {
         x.onclick = function () {
-          hitungPecahan(x.dataset.pecahan === '__gabung' ? 'Total semua uang' : UNIT[x.dataset.pecahan].label, function (tot) {
+          hitungPecahan(x.dataset.pecahan === '__gabung' ? 'Total semua uang' : labelKunci(x.dataset.pecahan), function (tot) {
             if (x.dataset.pecahan === '__gabung') c.gabungan = tot; else c.nyata[x.dataset.pecahan] = tot;
             App.render();
           });
@@ -168,9 +210,9 @@
     const n = r.nyata || {}, c = r.catatan || {};
     let teks;
     if (n.gabungan !== undefined) teks = 'Gabungan ' + (r.selisih ? (r.selisih > 0 ? '+' : '−') + U.rp(Math.abs(r.selisih)) : 'cocok');
-    else teks = Object.keys(UNIT).filter(function (d) { return n[d] !== undefined; }).map(function (d) {
+    else teks = Object.keys(n).map(function (d) {
       const s = n[d] - (c[d] || 0);
-      return UNIT[d].label + ' ' + (s ? (s > 0 ? '+' : '−') + U.rp(Math.abs(s)) : 'cocok');
+      return labelKunci(d) + ' ' + (s ? (s > 0 ? '+' : '−') + U.rp(Math.abs(s)) : 'cocok');
     }).join(' · ');
     return teks + (r.ket ? ' — ' + r.ket : '');
   }
@@ -191,7 +233,8 @@
       lupaMasuk: 'arrowDown', lupaKeluar: 'arrowUp', rutin: 'history', hariKosong: 'calendar', kecil: 'coins', hutangBaru: 'user', hutangDibayar: 'user' }[t.tipe] || 'sparkles';
   }
   function ikonAksi(tp) {
-    return { pindahUang: 'swap', pinjam: 'swap', pindah: 'swap', hapus: 'trash', ubahNominal: 'edit', transaksi: 'plus', terimaPiutang: 'arrowDown', bayarPinjaman: 'banknote',
+    return { pindahKelompok: 'swap', pindahUang: 'swap', pinjam: 'swap',
+ pindah: 'swap', hapus: 'trash', ubahNominal: 'edit', transaksi: 'plus', terimaPiutang: 'arrowDown', bayarPinjaman: 'banknote',
       bayarHutang: 'banknote', hutang: 'user', penyesuaian: 'scale' }[tp] || 'check';
   }
 
@@ -263,7 +306,8 @@
         return Forms.pindahUang({ dari: a.dari, nominal: a.nominal });
       case 'pindah': {
         const z = trx(a.idTrx); if (!z) return;
-        if (z.dompet === a.ke) return Forms.transaksi(Object.assign({}, z, { akun: a.akun || 'Tunai' })); // hanya ganti akun Tunai/ATM
+        if (z.dompet === a.ke && a.ke === 'Pribadi') return Forms.transaksi(Object.assign({}, z, { akun: a.akun || 'Tunai' })); // hanya ganti akun Tunai/ATM
+        if (z.dompet === a.ke) return Forms.transaksi(Object.assign({}, z, { idKelompok: a.idKelompok || '' })); // hanya ganti anggaran/kepanitiaan
         UI.toast('Pilih pos/kategori untuk ' + U.DOMPET_LABEL[a.ke] + ', lalu simpan.', 'info', 4000);
         return Forms.transaksi(Object.assign({}, z, { dompet: a.ke, akun: a.akun || '', kategori: '', idKelompok: '', sumber: z.jenis === 'Pemasukan' ? z.sumber : '' }));
       }
@@ -279,7 +323,7 @@
         return;
       }
       case 'transaksi':
-        return Forms.transaksi({ jenis: a.jenis, dompet: a.dompet, akun: a.akun || undefined, nominal: a.nominal, kategori: a.kategori || '', subkategori: a.subkategori || '', keterangan: a.keterangan || '', tanggal: a.tanggal });
+        return Forms.transaksi({ jenis: a.jenis, dompet: a.dompet, akun: a.akun || undefined, idKelompok: a.idKelompok || '', nominal: a.nominal, kategori: a.kategori || '', subkategori: a.subkategori || '', keterangan: a.keterangan || '', tanggal: a.tanggal });
       case 'terimaPiutang': {
         const x = (b.piutang || []).find(function (p) { return p.id === a.id; }); if (!x) return;
         return Forms.terimaPiutang(x, a.nominal);
@@ -297,11 +341,11 @@
       case 'penyesuaian': {
         const n = Math.round(a.nominal);
         if (!n) return;
-        const nm = U.DOMPET_LABEL[a.dompet] + (a.akun ? ' › ' + a.akun : '');
+        const nm = a.idKelompok ? labelKunci(a.dompet + '|' + a.idKelompok) : U.DOMPET_LABEL[a.dompet] + (a.akun ? ' › ' + a.akun : '');
         const ok = await UI.confirm({ title: 'Sesuaikan ' + nm + '?', icon: 'scale', tone: 't-navy', btn: 'btn-navy', ok: 'Sesuaikan',
           html: 'Catatan ' + e(nm) + ' akan ' + (n > 0 ? 'ditambah' : 'dikurangi') + ' <b>' + U.rp(Math.abs(n)) + '</b> sebagai selisih kas (tidak memengaruhi pos anggaran).' });
         if (!ok) return;
-        try { await API.call('sesuaikanSaldo', { dompet: a.dompet, akun: a.akun || '', nominal: n, catatan: t.judul }); UI.toast('Disesuaikan.'); await App.refresh(true); } catch (err) { UI.toast(err.message, 'error'); }
+        try { await API.call('sesuaikanSaldo', { dompet: a.dompet, akun: a.akun || '', idKelompok: a.idKelompok || '', nominal: n, catatan: t.judul }); UI.toast('Disesuaikan.'); await App.refresh(true); } catch (err) { UI.toast(err.message, 'error'); }
 
         return;
       }
